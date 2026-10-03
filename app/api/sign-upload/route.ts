@@ -42,8 +42,7 @@ export async function GET(request: NextRequest) {
 
         console.log("[sign-upload] 生成签名成功:", {
             key,
-            uploadUrlPrefix: uploadUrl.split("?")[0], // 只打印 URL 前缀，不打印签名参数
-            expiresSec: 300,
+            uploadUrl,
         })
 
         return NextResponse.json({

@@ -2,6 +2,7 @@ import "server-only"
 import { Agent as HttpAgent } from "http"
 import { Agent as HttpsAgent } from "https"
 import OSS from "ali-oss"
+import crypto from "crypto"
 
 /**
  * 阿里云 OSS 私有 Bucket 客户端
@@ -153,14 +154,42 @@ export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): str
     return oss.signatureUrl(key, { expires: expiresSec })
 }
 
-/** 生成直传 PUT 用的签名 URL（v1 签名）
- * 注意：ali-oss 默认在签名中包含 contentType=*，所以 PUT 请求的 Content-Type 必须是 * 或空
+/** 手动构造阿里云 OSS v1 签名 PUT URL，Content-Type 行留空（让浏览器传任意类型都能匹配）
+ *
+ * v1 StringToSign = HTTP_METHOD + "\n" + Content-MD5 + "\n" + Content-Type + "\n" + Expiration + "\n" + CanonicalizedResource
+ *
+ * 关键设计：Content-Type 行留空，浏览器发什么 Content-Type 都能匹配。
+ *
+ * OSS v1 签名规则（PUT）：
+ * - Content-Type 为空时，StringToSign 中该行留空（即只有换行符）
+ * - 资源路径格式：/bucket-name/object-key（不含域名和协议）
  */
 export function signPutUrl(key: string, expiresSec = 300): string {
     if (!key) return ""
-    
-    // @ts-expect-error ali-oss 类型定义不完整
-    return oss.signatureUrl(key, { expires: expiresSec, method: "PUT", contentType: "*" })
+
+    const objectKey = key // 已是 "patterns/images/xxx.jpg" 格式
+    const expiration = Math.floor(Date.now() / 1000) + expiresSec
+
+    // v1 签名：Content-Type 为空时留空行
+    const stringToSign = [
+        "PUT",
+        "",      // Content-MD5（可空）
+        "",      // Content-Type（留空 = 任意 Content-Type 都能通过验证）
+        expiration.toString(),
+        `/${bucket}/${objectKey}`,
+    ].join("\n")
+
+    const signature = crypto
+        .createHmac("sha1", accessKeySecret)
+        .update(stringToSign)
+        .digest("base64")
+
+    const url = new URL(`https://${bucket}.oss-${region}.aliyuncs.com/${objectKey}`)
+    url.searchParams.set("OSSAccessKeyId", accessKeyId)
+    url.searchParams.set("Expires", expiration.toString())
+    url.searchParams.set("Signature", signature)
+
+    return url.toString()
 }
 
 /** 删除 OSS 资源（出错不抛出，由调用方决定如何处理） */

@@ -121,9 +121,12 @@ async function tryDirectPut(
     const signed = await getSignedUpload(filename, folder)
     const t0 = performance.now()
     console.log("[upload] 开始 PUT 到 OSS...")
+    console.log("[upload] 签名 URL:", signed.uploadUrl)
+    
     const put = await fetch(signed.uploadUrl, {
         method: "PUT",
         body: fileToUpload,
+        // 不设置 Content-Type，让浏览器自动处理
         signal: AbortSignal.timeout(60_000),
     })
     const ms = Math.round(performance.now() - t0)
@@ -137,12 +140,12 @@ async function tryDirectPut(
     return signed.key
 }
 
-/** 上传单文件到 OSS，返回存储 key（patterns/images/xxx.png）。默认走直传，失败退回中转。 */
+/** 上传单文件到 OSS，返回存储 key（patterns/images/xxx.png）。默认走中转（稳定）。 */
 export async function uploadToOssDirect(
     file: File,
     folder: "images" | "files",
     compress?: (f: File) => Promise<File>,
-    useDirectPut = true, // 默认直传，最快
+    useDirectPut = false, // 暂时默认走中转
 ): Promise<string> {
     const cacheKey = `${folder}:${file.name}:${file.size}:${file.lastModified}`
     const cached = uploadCache.get(cacheKey)
