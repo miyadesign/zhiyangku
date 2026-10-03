@@ -255,16 +255,16 @@ export function Gallery({
       {/* 顶部栏 */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
-          {/* 第一行：Logo + 搜索 */}
-          <div className="flex items-center gap-3 md:gap-6">
-            <div className="flex shrink-0 items-center gap-2">
+          {/* Logo + 搜索 + 按钮 —— 移动端两行，PC 同一行 */}
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+            <div className="flex items-center gap-2">
               <Ruler className="size-5 text-primary" aria-hidden="true" />
-              <span className="font-serif text-lg font-semibold tracking-tight text-foreground">
+              <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
                 纸样库
               </span>
             </div>
 
-            <div className="relative min-w-0 flex-1">
+            <div className="relative min-w-0 flex-1 md:max-w-xl">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
                 aria-hidden="true"
@@ -288,30 +288,29 @@ export function Gallery({
                 </button>
               )}
             </div>
-          </div>
 
-          {/* 第二行：操作按钮 */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setTagManagerOpen(true)}
-            >
-              <Tags className="mr-1.5 size-4" />
-              标签管理
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setBatchOpen(true)}
-            >
-              <Upload className="mr-1.5 size-4" />
-              批量上传
-            </Button>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="mr-1.5 size-4" />
-              新增纸样
-            </Button>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTagManagerOpen(true)}
+              >
+                <Tags className="mr-1.5 size-4" />
+                标签管理
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBatchOpen(true)}
+              >
+                <Upload className="mr-1.5 size-4" />
+                批量上传
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1.5 size-4" />
+                新增纸样
+              </Button>
+            </div>
           </div>
         </div>
       </header>
