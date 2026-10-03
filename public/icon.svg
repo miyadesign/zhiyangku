@@ -1,26 +1,71 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
   <style>
     @media (prefers-color-scheme: light) {
-      .background { fill: black; }
-      .foreground { fill: white; }
+      .bg { fill: #1a1a1a; }
+      .main { stroke: white; }
+      .seam { stroke: white; opacity: 0.5; }
+      .fold { stroke: white; opacity: 0.6; }
+      .grain { stroke: white; opacity: 0.07; }
+      .scissor { stroke: white; fill: white; opacity: 0.5; }
     }
     @media (prefers-color-scheme: dark) {
-      .background { fill: white; }
-      .foreground { fill: black; }
+      .bg { fill: #f5f0e8; }
+      .main { stroke: #1a1a1a; }
+      .seam { stroke: #1a1a1a; opacity: 0.5; }
+      .fold { stroke: #1a1a1a; opacity: 0.6; }
+      .grain { stroke: #1a1a1a; opacity: 0.12; }
+      .scissor { stroke: #1a1a1a; fill: #1a1a1a; opacity: 0.5; }
     }
   </style>
-  <g clip-path="url(#clip0_7960_43945)">
-    <rect class="background" width="180" height="180" rx="37" />
-    <g style="transform: scale(95%); transform-origin: center">
-      <path class="foreground"
-        d="M101.141 53H136.632C151.023 53 162.689 64.6662 162.689 79.0573V112.904H148.112V79.0573C148.112 78.7105 148.098 78.3662 148.072 78.0251L112.581 112.898C112.701 112.902 112.821 112.904 112.941 112.904H148.112V126.672H112.941C98.5504 126.672 86.5638 114.891 86.5638 100.5V66.7434H101.141V100.5C101.141 101.15 101.191 101.792 101.289 102.422L137.56 66.7816C137.255 66.7563 136.945 66.7434 136.632 66.7434H101.141V53Z" />
-      <path class="foreground"
-        d="M65.2926 124.136L14 66.7372H34.6355L64.7495 100.436V66.7372H80.1365V118.47C80.1365 126.278 70.4953 129.958 65.2926 124.136Z" />
-    </g>
+
+  <!-- 背景圆角矩形 -->
+  <rect class="bg" width="180" height="180" rx="37"/>
+
+  <!-- 主体衣身轮廓：简化T恤外形 -->
+  <!-- 左袖 + 肩线 + 衣身 -->
+  <path class="main" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+    d="M35 72 L58 60 L78 55 L90 65 L102 55 L122 60 L145 72 L142 86 L118 80 L118 132 L62 132 L62 80 L38 86 Z"/>
+
+  <!-- 领口折叠线（肩线延伸） -->
+  <line class="fold" x1="78" y1="55" x2="70" y2="62" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <line class="fold" x1="102" y1="55" x2="110" y2="62" stroke-width="1.5" stroke-dasharray="3 4"/>
+
+  <!-- 放缝线（虚线）：下摆 + 侧缝 -->
+  <line class="seam" x1="58" y1="140" x2="122" y2="140" stroke-width="2" stroke-dasharray="5 4"/>
+  <line class="seam" x1="54" y1="80" x2="54" y2="140" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line class="seam" x1="126" y1="80" x2="126" y2="140" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+  <!-- 袖窿放缝（虚线） -->
+  <path class="seam" fill="none" stroke-width="1.5" stroke-dasharray="4 3"
+    d="M62 80 Q52 72 38 74"/>
+
+  <!-- 折烫线（点划线）：后中线 -->
+  <line class="fold" x1="90" y1="65" x2="90" y2="132" stroke-width="1.5" stroke-dasharray="2 5"/>
+
+  <!-- 布料纹理：水平细线 -->
+  <g class="grain" stroke-width="0.8" fill="none">
+    <line x1="62" y1="90" x2="118" y2="90"/>
+    <line x1="62" y1="100" x2="118" y2="100"/>
+    <line x1="62" y1="110" x2="118" y2="110"/>
+    <line x1="62" y1="120" x2="118" y2="120"/>
+    <line x1="62" y1="128" x2="118" y2="128"/>
+    <!-- 袖子布料纹 -->
+    <line x1="38" y1="78" x2="62" y2="72"/>
+    <line x1="40" y1="84" x2="62" y2="78"/>
+    <line x1="142" y1="78" x2="118" y2="72"/>
+    <line x1="140" y1="84" x2="118" y2="78"/>
   </g>
-  <defs>
-    <clipPath id="clip0_7960_43945">
-      <rect width="180" height="180" fill="white" />
-    </clipPath>
-  </defs>
+
+  <!-- 缝合对位标记（小圆点） -->
+  <circle class="main" cx="78" cy="62" r="2.5" fill="none" stroke-width="1.5"/>
+  <circle class="main" cx="102" cy="62" r="2.5" fill="none" stroke-width="1.5"/>
+
+  <!-- 小剪刀符号（纸样常见符号）左下角 -->
+  <g class="scissor" transform="translate(52, 145)">
+    <circle cx="0" cy="0" r="2.5"/>
+    <circle cx="14" cy="14" r="2.5"/>
+    <line x1="2" y1="2" x2="12" y2="12" stroke-width="1.5"/>
+    <line x1="12" y1="2" x2="2" y2="12" stroke-width="1.5"/>
+  </g>
+
 </svg>
