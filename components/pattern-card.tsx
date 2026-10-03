@@ -1,6 +1,6 @@
 "use client"
 
-import { Download, Pencil, Trash2 } from "lucide-react"
+import { Pencil, Trash2 } from "lucide-react"
 import { CategoryBadge } from "@/components/category-badge"
 import { fileSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
 
@@ -8,18 +8,15 @@ export function PatternCard({
   pattern,
   tagColors,
   onOpen,
-  onDownload,
   onEdit,
   onDelete,
 }: {
   pattern: GalleryPattern
   tagColors: Record<string, string>
   onOpen: (pattern: GalleryPattern) => void
-  onDownload: (pattern: GalleryPattern) => void
   onEdit?: (pattern: GalleryPattern) => void
   onDelete?: (pattern: GalleryPattern) => void
 }) {
-  const hasFile = !!pattern.fileUrl
   const manageable = !!onEdit || !!onDelete
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md">
@@ -82,17 +79,6 @@ export function PatternCard({
             <CategoryBadge key={cat} category={cat} color={tagColors[cat]} />
           ))}
         </div>
-
-        <button
-          type="button"
-          onClick={() => onDownload(pattern)}
-          disabled={!hasFile}
-          title={hasFile ? "下载电子版纸样文件" : "暂无电子版纸样文件"}
-          className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Download className="size-3.5" aria-hidden="true" />
-          {hasFile ? "下载纸样" : "暂无文件"}
-        </button>
       </div>
     </div>
   )

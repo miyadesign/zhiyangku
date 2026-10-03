@@ -401,7 +401,6 @@ export function Gallery({
                   pattern={pattern}
                   tagColors={tagColors}
                   onOpen={setActive}
-                  onDownload={downloadPattern}
                   onEdit={openEdit}
                   onDelete={setDeleteTarget}
                 />
