@@ -42,7 +42,7 @@ interface SignedUpload {
 /** 向 /api/sign-upload 请求一个 PUT 签名 URL（直传路径用） */
 async function getSignedUpload(filename: string, folder: "images" | "files"): Promise<SignedUpload> {
     const url = `/api/sign-upload?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(filename)}`
-    const r = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+    const r = await fetch(url, { signal: AbortSignal.timeout(30_000) })
     if (!r.ok) {
         const err = await r.json().catch(() => ({}))
         throw new Error(err.error || `签名失败 (${r.status})`)
@@ -51,7 +51,7 @@ async function getSignedUpload(filename: string, folder: "images" | "files"): Pr
 }
 
 /**
- * 中转上传：默认路径。浏览器 → Next.js /api/upload → 服务端 putStream 到 OSS。
+ * 中转上传：浏览器 → Next.js /api/upload → 服务端 putStream 到 OSS。
  *
  * 为什么默认走中转：
  * - 中转只需 1 次到 Next.js 的 HTTPS + 1 次服务端到 OSS 的 HTTPS
@@ -81,7 +81,7 @@ async function uploadViaProxy(
         },
         body: fileToUpload,
         // 中转路径让客户端等久些没关系；但仍要有限度，免得挂死
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(120_000),
         // keepalive 让同一会话的多次上传复用连接
         keepalive: true,
     })
@@ -114,14 +114,19 @@ async function tryDirectPut(
     folder: "images" | "files",
 ): Promise<string> {
     const signed = await getSignedUpload(filename, folder)
+    const t0 = performance.now()
     const put = await fetch(signed.uploadUrl, {
         method: "PUT",
         body: fileToUpload,
-        signal: AbortSignal.timeout(30_000),
+        signal: AbortSignal.timeout(60_000),
     })
+    const ms = Math.round(performance.now() - t0)
     if (!put.ok) {
+        const text = await put.text().catch(() => "")
+        console.error(`[upload] 直传失败 HTTP ${put.status}: ${text}`)
         throw new Error(`直传失败 HTTP ${put.status}`)
     }
+    console.log(`[upload] 直传 ${(fileToUpload.size / 1024).toFixed(1)}KB ${filename} → ${ms}ms`)
     return signed.key
 }
 
@@ -130,7 +135,7 @@ export async function uploadToOssDirect(
     file: File,
     folder: "images" | "files",
     compress?: (f: File) => Promise<File>,
-    useDirectPut = true,
+    useDirectPut = false, // 默认走中转，更稳定
 ): Promise<string> {
     const cacheKey = `${folder}:${file.name}:${file.size}:${file.lastModified}`
     const cached = uploadCache.get(cacheKey)
@@ -168,18 +173,18 @@ export async function uploadDirectToOssFast(
     compress?: (f: File) => Promise<File>,
 ): Promise<string> {
     const realCompress = compress ?? (folder === "images" ? async (f) => (await compressImageFile(f)).file : undefined)
-    return uploadToOssDirect(file, folder, realCompress, true)
+    return uploadToOssDirect(file, folder, realCompress, false) // 默认走中转，更稳定
 }
 
 /** @deprecated 请改用 uploadDirectToOssFast，保留这个名字仅为兼容旧调用站点 */
 export const uploadDirectToCloudinaryFast = uploadDirectToOssFast
 
 /** 预热：组件挂载时主动预热签名，让第一张上传 0 等待（保留接口） */
-const prefetchPromises = new Map<string, Promise<SignedUpload>>()
+const prefetchPromises = new Map<string, Promise<SignedUpload | null>>()
 export async function prefetchSignedParams(folder: "images" | "files"): Promise<void> {
     if (prefetchPromises.has(folder)) return
     const p = getSignedUpload("warmup.bin", folder).catch(() => null)
-    prefetchPromises.set(folder, p as Promise<SignedUpload>)
+    prefetchPromises.set(folder, p as Promise<SignedUpload | null>)
 }
 
 /**

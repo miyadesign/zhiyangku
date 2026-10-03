@@ -52,6 +52,8 @@ export const oss = new OSS({
     accessKeyId,
     accessKeySecret,
     secure: true,
+    // 允许更长的连接超时（跨洲场景下 SSL 握手可能较慢）
+    timeout: 60 * 1000,
     // ali-oss 的类型签名里 Options 没 agent/httpsAgent 字段，但运行时支持
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...({ agent: keepAliveHttpAgent, httpsAgent: keepAliveHttpsAgent } as any),
