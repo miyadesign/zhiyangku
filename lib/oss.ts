@@ -17,9 +17,9 @@ import crypto from "crypto"
  * OSS 连接管理（关键性能）：
  * - SDK 默认用 agentkeepalive 但 keepAlive=false，意味着空闲连接会被服务器关
  * - 跨洲（CN → 新加坡）每次新建连接付 ~2s SSL 握手 + TCP 慢启动
- * - 我们自定义 https agent，强制 keepAlive=true，30s 空闲保留 socket，10 个 maxFreeSockets
- * - 首次上传后连接进入 free pool；30s 内复用 socket = 0 握手成本
- * - 超 30s 才重新付握手（OSS 默认 idle timeout），但用户体验上：用户连传几张图都连
+ * - 我们自定义 https agent，强制 keepAlive=true，10s 空闲保留 socket，5 个 maxFreeSockets
+ * - 首次上传后连接进入 free pool；10s 内复用 socket = 0 握手成本
+ * - 超 10s 才重新付握手（跨洲链路不稳定，idle 太长会被中途 RESET）
  */
 
 const region = process.env.ALI_OSS_REGION || "ap-southeast-1"
@@ -30,18 +30,18 @@ const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
 // 签名 URL 默认有效期（秒）。前端列表/详情只读图片，1 小时足够；超过会自动重新签名
 export const SIGN_EXPIRES_SEC = Number(process.env.ALI_OSS_SIGN_EXPIRES || 3600)
 
-// 自定义 https agent：长 keep-alive + 复用空闲 socket
+// 自定义 https agent：短 keep-alive + 复用空闲 socket
 //  - keepAlive=true：让 OS 层 TCP keep-alive 保持连接活跃
-//  - keepAliveMsecs=30000：30s 空闲仍然保持（OSS server 端 idle timeout 一般 30-60s）
-//  - maxSockets=20：并发上限（批量上传时能并行 20 个 PUT）
-//  - maxFreeSockets=10：free pool 保留 10 个空闲 socket 备用
+//  - keepAliveMsecs=10_000：10s 空闲仍然保持（跨洲链路不稳定，idle 太长会被中途 RESET）
+//  - maxSockets=20：并发上限
+//  - maxFreeSockets=5：free pool 保留 5 个空闲 socket 备用
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const keepAliveAgentOpts: any = {
     keepAlive: true,
-    keepAliveMsecs: 30_000,
+    keepAliveMsecs: 10_000,
     maxSockets: 20,
-    maxFreeSockets: 10,
-    freeSocketTimeout: 30_000,
+    maxFreeSockets: 5,
+    freeSocketTimeout: 10_000,
 }
 const keepAliveHttpAgent = new HttpAgent(keepAliveAgentOpts)
 const keepAliveHttpsAgent = new HttpsAgent(keepAliveAgentOpts)
