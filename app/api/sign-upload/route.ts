@@ -24,6 +24,19 @@ export const dynamic = "force-dynamic"
 // CORS 自检不阻塞主流程：fire-and-forget（warmup 也走这条）
 const corsP = ensureCors().catch(() => false)
 
+// 显式处理 preflight 请求（Next.js 按 HTTP 方法路由，OPTIONS 不会进 GET）
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 204,
+        headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600",
+        },
+    })
+}
+
 export async function GET(request: NextRequest) {
     try {
         const folder = request.nextUrl.searchParams.get("folder")
@@ -46,11 +59,18 @@ export async function GET(request: NextRequest) {
             uploadUrl,
         })
 
-        return NextResponse.json({
-            uploadUrl,
-            key,
-            expiresAt: Date.now() + 300_000,
-        })
+        return NextResponse.json(
+            {
+                uploadUrl,
+                key,
+                expiresAt: Date.now() + 300_000,
+            },
+            {
+                headers: {
+                    "Access-Control-Allow-Origin": "*",
+                },
+            },
+        )
     } catch (error) {
         console.error("[sign-upload] error:", error)
         return NextResponse.json(
