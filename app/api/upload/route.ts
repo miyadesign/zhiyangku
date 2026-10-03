@@ -63,7 +63,11 @@ export async function POST(request: NextRequest) {
         )
         return res
     } catch (error) {
-        console.error("[upload] error:", error)
+        console.error("[upload] error:", {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : undefined,
+            stack: error instanceof Error ? error.stack?.slice(0, 500) : undefined,
+        })
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "上传失败" },
             { status: 500 },

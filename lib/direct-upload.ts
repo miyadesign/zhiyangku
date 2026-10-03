@@ -151,19 +151,25 @@ export async function uploadToOssDirect(
     const fileToUpload = compress ? await compress(file) : file
 
     const p = (async () => {
+        // 先尝试中转上传（更稳定）
+        try {
+            console.log("[upload] 尝试中转上传...")
+            return await uploadViaProxy(fileToUpload, file.name, folder)
+        } catch (e) {
+            console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
+        }
+        
+        // 中转失败再试直传
         if (useDirectPut) {
             try {
+                console.log("[upload] 尝试直传...")
                 return await tryDirectPut(fileToUpload, file.name, folder)
             } catch (e) {
-                console.warn(
-                    "[upload] 直传失败，退回中转:",
-                    e instanceof Error ? e.message : e,
-                )
-                // 继续走中转...
+                console.warn("[upload] 直传也失败:", e instanceof Error ? e.message : e)
             }
         }
-        console.log("[upload] 走中转上传...")
-        return uploadViaProxy(fileToUpload, file.name, folder)
+        
+        throw new Error("上传失败：中转和直传都不可用")
     })()
 
     uploadCache.set(cacheKey, p)
