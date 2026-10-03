@@ -42,12 +42,16 @@ interface SignedUpload {
 /** 向 /api/sign-upload 请求一个 PUT 签名 URL（直传路径用） */
 async function getSignedUpload(filename: string, folder: "images" | "files"): Promise<SignedUpload> {
     const url = `/api/sign-upload?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(filename)}`
+    console.log("[upload] 请求签名:", url)
     const r = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+    console.log("[upload] 签名响应:", r.status, r.statusText)
     if (!r.ok) {
         const err = await r.json().catch(() => ({}))
         throw new Error(err.error || `签名失败 (${r.status})`)
     }
-    return (await r.json()) as SignedUpload
+    const data = await r.json() as SignedUpload
+    console.log("[upload] 签名成功, URL:", data.uploadUrl?.slice(0, 80) + "...")
+    return data
 }
 
 /**
@@ -113,20 +117,23 @@ async function tryDirectPut(
     filename: string,
     folder: "images" | "files",
 ): Promise<string> {
+    console.log("[upload] 开始直传:", filename, fileToUpload.size, "bytes")
     const signed = await getSignedUpload(filename, folder)
     const t0 = performance.now()
+    console.log("[upload] 开始 PUT 到 OSS...")
     const put = await fetch(signed.uploadUrl, {
         method: "PUT",
         body: fileToUpload,
         signal: AbortSignal.timeout(60_000),
     })
     const ms = Math.round(performance.now() - t0)
+    console.log("[upload] PUT 响应:", put.status, put.statusText, ms + "ms")
     if (!put.ok) {
         const text = await put.text().catch(() => "")
         console.error(`[upload] 直传失败 HTTP ${put.status}: ${text}`)
         throw new Error(`直传失败 HTTP ${put.status}`)
     }
-    console.log(`[upload] 直传 ${(fileToUpload.size / 1024).toFixed(1)}KB ${filename} → ${ms}ms`)
+    console.log(`[upload] 直传成功 ${(fileToUpload.size / 1024).toFixed(1)}KB ${filename} → ${ms}ms`)
     return signed.key
 }
 
