@@ -104,9 +104,9 @@ async function uploadViaProxy(
 }
 
 /**
- * 直传路径（保留作高级选项/未来跨区加速用）。
- * 浏览器拿签名 URL 后直接 PUT 到 OSS，跳开 Next.js 中转。
- * 当前默认不调用，仅在显式传 useDirectPut=true 时启用。
+ * 直传路径：浏览器拿签名 URL 后直接 PUT 到 OSS，跳开 Next.js 中转。
+ * 单次 SSL 握手（浏览器→OSS 新加坡）vs 两跳（浏览器→Vercel→OSS）。
+ * 跨境场景下直传比中转快 5-10s。
  */
 async function tryDirectPut(
     fileToUpload: File,
@@ -119,16 +119,18 @@ async function tryDirectPut(
         body: fileToUpload,
         signal: AbortSignal.timeout(30_000),
     })
-    if (put.ok) return signed.key
-    throw new Error(`直传失败 (${put.status})`)
+    if (!put.ok) {
+        throw new Error(`直传失败 HTTP ${put.status}`)
+    }
+    return signed.key
 }
 
-/** 上传单文件到 OSS，返回存储 key（patterns/images/xxx.png）。默认走中转。 */
+/** 上传单文件到 OSS，返回存储 key（patterns/images/xxx.png）。默认走直传，失败退回中转。 */
 export async function uploadToOssDirect(
     file: File,
     folder: "images" | "files",
     compress?: (f: File) => Promise<File>,
-    useDirectPut = false,
+    useDirectPut = true,
 ): Promise<string> {
     const cacheKey = `${folder}:${file.name}:${file.size}:${file.lastModified}`
     const cached = uploadCache.get(cacheKey)
@@ -147,7 +149,6 @@ export async function uploadToOssDirect(
                 )
             }
         }
-        // 默认走中转
         return uploadViaProxy(fileToUpload, file.name, folder)
     })()
 
@@ -167,7 +168,7 @@ export async function uploadDirectToOssFast(
     compress?: (f: File) => Promise<File>,
 ): Promise<string> {
     const realCompress = compress ?? (folder === "images" ? async (f) => (await compressImageFile(f)).file : undefined)
-    return uploadToOssDirect(file, folder, realCompress, false)
+    return uploadToOssDirect(file, folder, realCompress, true)
 }
 
 /** @deprecated 请改用 uploadDirectToOssFast，保留这个名字仅为兼容旧调用站点 */
@@ -176,8 +177,46 @@ export const uploadDirectToCloudinaryFast = uploadDirectToOssFast
 /** 预热：组件挂载时主动预热签名，让第一张上传 0 等待（保留接口） */
 const prefetchPromises = new Map<string, Promise<SignedUpload>>()
 export async function prefetchSignedParams(folder: "images" | "files"): Promise<void> {
-    // 当前默认不走直传，但保留接口让 UI 不报错；预热改成 ping /api/sign-upload 让首张直传也能 0 等待
     if (prefetchPromises.has(folder)) return
     const p = getSignedUpload("warmup.bin", folder).catch(() => null)
     prefetchPromises.set(folder, p as Promise<SignedUpload>)
+}
+
+/**
+ * 并行上传多张图片。
+ * 不等一张传完再传下一张，而是同时发起所有上传，充分利用浏览器并发连接数。
+ * 浏览器单域名并发上限 ~6，文件数量少时全部并行；文件多时分批。
+ */
+const PARALLEL_LIMIT = 6
+
+export async function uploadMultipleToOss(
+    files: File[],
+    folder: "images" | "files",
+    onProgress?: (done: number, total: number) => void,
+): Promise<string[]> {
+    if (files.length === 0) return []
+    if (files.length === 1) {
+        const key = await uploadDirectToOssFast(files[0], folder)
+        onProgress?.(1, 1)
+        return [key]
+    }
+
+    const keys: string[] = new Array(files.length)
+    const results = new Array(files.length)
+    let done = 0
+
+    const uploadOne = async (i: number, file: File) => {
+        const key = await uploadDirectToOssFast(file, folder)
+        keys[i] = key
+        done++
+        onProgress?.(done, files.length)
+    }
+
+    // 分批并行：每批最多 PARALLEL_LIMIT 个
+    for (let i = 0; i < files.length; i += PARALLEL_LIMIT) {
+        const batch = files.slice(i, i + PARALLEL_LIMIT)
+        await Promise.all(batch.map((file, j) => uploadOne(i + j, file)))
+    }
+
+    return keys
 }
