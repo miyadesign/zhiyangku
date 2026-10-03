@@ -254,40 +254,44 @@ export function Gallery({
     <div className="min-h-screen bg-background">
       {/* 顶部栏 */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:gap-6">
-          <div className="flex items-center gap-2">
-            <Ruler className="size-5 text-primary" aria-hidden="true" />
-            <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
-              纸样库
-            </span>
+        <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
+          {/* 第一行：Logo + 搜索 */}
+          <div className="flex items-center gap-3 md:gap-6">
+            <div className="flex shrink-0 items-center gap-2">
+              <Ruler className="size-5 text-primary" aria-hidden="true" />
+              <span className="font-serif text-lg font-semibold tracking-tight text-foreground">
+                纸样库
+              </span>
+            </div>
+
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜索工作室 / 品类 / 款式 / 尺码…"
+                aria-label="全局搜索纸样"
+                className="w-full rounded-full border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="清除搜索"
+                  className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="relative flex-1 md:max-w-xl">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索工作室 / 品类 / 款式 / 尺码…"
-              aria-label="全局搜索纸样"
-              className="w-full rounded-full border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
-            />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                aria-label="清除搜索"
-                className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-              >
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
+          {/* 第二行：操作按钮 */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -314,7 +318,7 @@ export function Gallery({
 
       <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row">
         {/* 左侧工作室导航 —— PC 端固定 */}
-        <aside className="shrink-0 border-b border-border px-4 py-4 md:sticky md:top-[61px] md:h-[calc(100vh-61px)] md:w-56 md:self-start md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-6">
+        <aside className="shrink-0 border-b border-border px-4 py-4 md:sticky md:top-[81px] md:h-[calc(100vh-81px)] md:w-56 md:self-start md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-6">
           <nav className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
             {studioItems.map((item) => {
               const isActive = studio === item.key
