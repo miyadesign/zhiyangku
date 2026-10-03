@@ -1,12 +1,14 @@
 {
+  "framework": "nextjs",
   "regions": ["sin1"],
   "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": null,
   "functions": {
     "app/api/upload/route.ts": {
       "maxDuration": 60
     },
     "app/api/sign-upload/route.ts": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }
