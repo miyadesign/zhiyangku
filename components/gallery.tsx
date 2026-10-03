@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
+import { Plus, Search, Tags, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -255,8 +255,71 @@ export function Gallery({
       {/* 顶部栏 */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-3 sm:px-6 md:flex-row md:items-center md:gap-6">
+          {/* Logo：与 favicon 一致的服装纸样轮廓 */}
           <div className="flex items-center gap-2">
-            <Ruler className="size-5 text-primary" aria-hidden="true" />
+            {/* 深色模式：暖米底深图 | 浅色模式：深底白图 */}
+            <svg
+              className="hidden dark:block"
+              width="28"
+              height="28"
+              viewBox="0 0 32 32"
+              aria-hidden="true"
+            >
+              <rect width="32" height="32" rx="6" fill="#f5f0e8" />
+              <path
+                stroke="#1a1a1a"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                d="M14 9 L18 9 L21 10.5 L20.5 14 L18.5 13.5 L18.5 23 L13.5 23 L13.5 13.5 L11.5 14 L12 10.5 L14 9 Z"
+              />
+              <line
+                x1="16"
+                y1="11"
+                x2="16"
+                y2="23"
+                stroke="#1a1a1a"
+                strokeWidth="0.8"
+                strokeDasharray="1 2"
+                opacity="0.6"
+              />
+              <line x1="13.5" y1="15" x2="18.5" y2="15" stroke="#1a1a1a" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="17" x2="18.5" y2="17" stroke="#1a1a1a" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="19" x2="18.5" y2="19" stroke="#1a1a1a" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="21" x2="18.5" y2="21" stroke="#1a1a1a" strokeWidth="0.3" opacity="0.15" />
+            </svg>
+            <svg
+              className="block dark:hidden"
+              width="28"
+              height="28"
+              viewBox="0 0 32 32"
+              aria-hidden="true"
+            >
+              <rect width="32" height="32" rx="6" fill="#1a1a1a" />
+              <path
+                stroke="white"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                d="M14 9 L18 9 L21 10.5 L20.5 14 L18.5 13.5 L18.5 23 L13.5 23 L13.5 13.5 L11.5 14 L12 10.5 L14 9 Z"
+              />
+              <line
+                x1="16"
+                y1="11"
+                x2="16"
+                y2="23"
+                stroke="white"
+                strokeWidth="0.8"
+                strokeDasharray="1 2"
+                opacity="0.6"
+              />
+              <line x1="13.5" y1="15" x2="18.5" y2="15" stroke="white" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="17" x2="18.5" y2="17" stroke="white" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="19" x2="18.5" y2="19" stroke="white" strokeWidth="0.3" opacity="0.15" />
+              <line x1="13.5" y1="21" x2="18.5" y2="21" stroke="white" strokeWidth="0.3" opacity="0.15" />
+            </svg>
             <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
               纸样库
             </span>
