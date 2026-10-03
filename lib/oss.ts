@@ -22,7 +22,7 @@ import crypto from "crypto"
  * - 超 30s 才重新付握手（OSS 默认 idle timeout），但用户体验上：用户连传几张图都连
  */
 
-const region = process.env.ALI_OSS_REGION || "oss-ap-southeast-1"
+const region = process.env.ALI_OSS_REGION || "ap-southeast-1"
 const bucket = process.env.ALI_OSS_BUCKET || "zhiyangku"
 const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
 const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
@@ -48,6 +48,8 @@ const keepAliveHttpsAgent = new HttpsAgent(keepAliveAgentOpts)
 
 /** 单例 OSS 客户端（v1 签名 + region 默认 endpoint + 长 keep-alive） */
 export const oss = new OSS({
+    // 显式指定 endpoint，避免 region "ap-southeast-1" + SDK 自动拼接导致域名错误
+    endpoint: `https://oss-${region}.aliyuncs.com`,
     region,
     bucket,
     accessKeyId,
@@ -164,17 +166,17 @@ export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): str
  * - Content-Type 为空时，StringToSign 中该行留空（即只有换行符）
  * - 资源路径格式：/bucket-name/object-key（不含域名和协议）
  */
-export function signPutUrl(key: string, expiresSec = 300): string {
+export function signPutUrl(key: string, expiresSec = 300, contentType = ""): string {
     if (!key) return ""
 
     const objectKey = key // 已是 "patterns/images/xxx.jpg" 格式
     const expiration = Math.floor(Date.now() / 1000) + expiresSec
 
-    // v1 签名：Content-Type 为空时留空行
+    // v1 签名：Content-Type 为空时留空行，传入 contentType 时则用实际值
     const stringToSign = [
         "PUT",
         "",      // Content-MD5（可空）
-        "",      // Content-Type（留空 = 任意 Content-Type 都能通过验证）
+        contentType, // Content-Type（传入则用实际值，否则留空）
         expiration.toString(),
         `/${bucket}/${objectKey}`,
     ].join("\n")

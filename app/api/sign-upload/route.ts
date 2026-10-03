@@ -36,9 +36,10 @@ export async function GET(request: NextRequest) {
         // 直传失败时客户端仍能 fallback 到 /api/upload 中转
         await corsP
 
+        const contentType = request.nextUrl.searchParams.get("contentType") || ""
         const key = buildKey(filename, folder)
-        // signPutUrl 是同步的 v1 签名
-        const uploadUrl = signPutUrl(key, 300)
+        // signPutUrl 是同步的 v1 签名，传入 contentType 使其与浏览器 PUT 时一致
+        const uploadUrl = signPutUrl(key, 300, contentType)
 
         console.log("[sign-upload] 生成签名成功:", {
             key,

@@ -40,8 +40,14 @@ interface SignedUpload {
 }
 
 /** 向 /api/sign-upload 请求一个 PUT 签名 URL（直传路径用） */
-async function getSignedUpload(filename: string, folder: "images" | "files"): Promise<SignedUpload> {
-    const url = `/api/sign-upload?folder=${encodeURIComponent(folder)}&filename=${encodeURIComponent(filename)}`
+async function getSignedUpload(
+    filename: string,
+    folder: "images" | "files",
+    contentType = "",
+): Promise<SignedUpload> {
+    const params = new URLSearchParams({ folder, filename })
+    if (contentType) params.set("contentType", contentType)
+    const url = `/api/sign-upload?${params.toString()}`
     console.log("[upload] 请求签名:", url)
     const r = await fetch(url, { signal: AbortSignal.timeout(30_000) })
     console.log("[upload] 签名响应:", r.status, r.statusText)
@@ -118,15 +124,19 @@ async function tryDirectPut(
     folder: "images" | "files",
 ): Promise<string> {
     console.log("[upload] 开始直传:", filename, fileToUpload.size, "bytes")
-    const signed = await getSignedUpload(filename, folder)
+    const contentType = fileToUpload.type || "application/octet-stream"
+    const signed = await getSignedUpload(filename, folder, contentType)
     const t0 = performance.now()
     console.log("[upload] 开始 PUT 到 OSS...")
     console.log("[upload] 签名 URL:", signed.uploadUrl)
-    
+    console.log("[upload] Content-Type:", contentType)
+
     const put = await fetch(signed.uploadUrl, {
         method: "PUT",
         body: fileToUpload,
-        // 不设置 Content-Type，让浏览器自动处理
+        headers: {
+            "Content-Type": contentType,
+        },
         signal: AbortSignal.timeout(60_000),
     })
     const ms = Math.round(performance.now() - t0)
@@ -154,24 +164,24 @@ export async function uploadToOssDirect(
     const fileToUpload = compress ? await compress(file) : file
 
     const p = (async () => {
-        // 先尝试中转上传（更稳定）
+        // 直传 OSS 优先（浏览器直连 OSS，跳开 Vercel 中转，没有 4.5MB 限制）
+        if (useDirectPut) {
+            try {
+                console.log("[upload] 尝试直传...")
+                return await tryDirectPut(fileToUpload, file.name, folder)
+            } catch (e) {
+                console.warn("[upload] 直传失败:", e instanceof Error ? e.message : e)
+            }
+        }
+
+        // 直传失败才走代理（Vercel Serverless body 限制 4.5MB，大文件会 413）
         try {
             console.log("[upload] 尝试中转上传...")
             return await uploadViaProxy(fileToUpload, file.name, folder)
         } catch (e) {
             console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
         }
-        
-        // 中转失败再试直传
-        if (useDirectPut) {
-            try {
-                console.log("[upload] 尝试直传...")
-                return await tryDirectPut(fileToUpload, file.name, folder)
-            } catch (e) {
-                console.warn("[upload] 直传也失败:", e instanceof Error ? e.message : e)
-            }
-        }
-        
+
         throw new Error("上传失败：中转和直传都不可用")
     })()
 
