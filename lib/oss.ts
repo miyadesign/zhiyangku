@@ -156,7 +156,9 @@ export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): str
 /** 生成直传 PUT 用的签名 URL（v1 同步） */
 export function signPutUrl(key: string, expiresSec = 300): string {
     if (!key) return ""
-    return oss.signatureUrl(key, { method: "PUT", expires: expiresSec } as never)
+    // 用 getSignedUrl 而不是 signatureUrl，后者不支持 method 参数
+    // ali-oss 的 getSignedUrl(method, name, expires, options)
+    return oss.getSignedUrl("PUT", key, expiresSec, {})
 }
 
 /** 删除 OSS 资源（出错不抛出，由调用方决定如何处理） */

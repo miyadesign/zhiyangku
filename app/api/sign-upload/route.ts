@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
         // signPutUrl 是同步的 v1 签名
         const uploadUrl = signPutUrl(key, 300)
 
+        console.log("[sign-upload] 生成签名成功:", {
+            key,
+            uploadUrlPrefix: uploadUrl.split("?")[0], // 只打印 URL 前缀，不打印签名参数
+            expiresSec: 300,
+        })
+
         return NextResponse.json({
             uploadUrl,
             key,
