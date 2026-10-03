@@ -1,0 +1,16 @@
+{
+  "name": "纸样库",
+  "short_name": "纸样库",
+  "description": "服装纸样收藏图库",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#fbfaf7",
+  "icons": [
+    {
+      "src": "/apple-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

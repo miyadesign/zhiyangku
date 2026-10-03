@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   title: '纸样库 · 服装纸样收藏图库',
   description: '面向服装手工爱好者的静态纸样收藏图库，按工作室分类，支持品类筛选与款式搜索。',
   generator: 'v0.app',
+  manifest: '/manifest.json',
   icons: {
     icon: [
       {
@@ -35,6 +36,14 @@ export const metadata: Metadata = {
       },
     ],
     apple: '/apple-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '纸样库',
+  },
+  formatDetection: {
+    telephone: false,
   },
 }
 
@@ -57,6 +66,8 @@ export default function RootLayout({
         {children}
         <Toaster position="top-center" />
         {process.env.NODE_ENV === 'production' && <Analytics />}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </body>
     </html>
   )
