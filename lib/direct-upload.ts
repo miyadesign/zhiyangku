@@ -135,7 +135,7 @@ export async function uploadToOssDirect(
     file: File,
     folder: "images" | "files",
     compress?: (f: File) => Promise<File>,
-    useDirectPut = false, // 默认走中转，更稳定
+    useDirectPut = true, // 默认直传，最快
 ): Promise<string> {
     const cacheKey = `${folder}:${file.name}:${file.size}:${file.lastModified}`
     const cached = uploadCache.get(cacheKey)
@@ -173,7 +173,7 @@ export async function uploadDirectToOssFast(
     compress?: (f: File) => Promise<File>,
 ): Promise<string> {
     const realCompress = compress ?? (folder === "images" ? async (f) => (await compressImageFile(f)).file : undefined)
-    return uploadToOssDirect(file, folder, realCompress, false) // 默认走中转，更稳定
+    return uploadToOssDirect(file, folder, realCompress, true) // 默认直传
 }
 
 /** @deprecated 请改用 uploadDirectToOssFast，保留这个名字仅为兼容旧调用站点 */
