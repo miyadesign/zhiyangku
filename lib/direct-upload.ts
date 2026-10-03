@@ -159,8 +159,10 @@ export async function uploadToOssDirect(
                     "[upload] 直传失败，退回中转:",
                     e instanceof Error ? e.message : e,
                 )
+                // 继续走中转...
             }
         }
+        console.log("[upload] 走中转上传...")
         return uploadViaProxy(fileToUpload, file.name, folder)
     })()
 
