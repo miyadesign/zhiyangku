@@ -153,24 +153,14 @@ export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): str
     return oss.signatureUrl(key, { expires: expiresSec })
 }
 
-/** 生成直传 PUT 用的签名 URL（v1 同步） */
+/** 生成直传 PUT 用的签名 URL（v1 签名）
+ * 注意：ali-oss 默认在签名中包含 contentType=*，所以 PUT 请求的 Content-Type 必须是 * 或空
+ */
 export function signPutUrl(key: string, expiresSec = 300): string {
     if (!key) return ""
-    try {
-        // 用 getSignedUrl 而不是 signatureUrl，后者不支持 method 参数
-        // ali-oss 的 getSignedUrl(method, name, expires, options)
-        const url = oss.getSignedUrl("PUT", key, expiresSec, {})
-        console.log("[oss] 生成 PUT 签名:", {
-            key,
-            bucket,
-            region,
-            urlHost: url.split("?")[0],
-        })
-        return url
-    } catch (e) {
-        console.error("[oss] getSignedUrl 失败:", e)
-        throw e
-    }
+    
+    // @ts-expect-error ali-oss 类型定义不完整
+    return oss.signatureUrl(key, { expires: expiresSec, method: "PUT", contentType: "*" })
 }
 
 /** 删除 OSS 资源（出错不抛出，由调用方决定如何处理） */
