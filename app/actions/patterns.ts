@@ -46,7 +46,7 @@ export async function createPattern(input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns", "max")
+    revalidateTag("patterns")
     revalidatePath("/")
     return (rows as Array<{ id: number }>)[0]?.id ?? null
 }
@@ -77,7 +77,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
         insertedIds.push((rows as Array<{ id: number }>)[0]?.id)
     }
 
-    revalidateTag("patterns", "max")
+    revalidateTag("patterns")
     revalidatePath("/")
     return insertedIds.length
 }
@@ -104,7 +104,7 @@ export async function updatePattern(id: number, input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns", "max")
+    revalidateTag("patterns")
     revalidatePath("/")
 }
 
@@ -127,6 +127,6 @@ export async function deletePattern(id: number) {
             ).catch(() => {})
         })
     }
-    revalidateTag("patterns", "max")
+    revalidateTag("patterns")
     revalidatePath("/")
 }
