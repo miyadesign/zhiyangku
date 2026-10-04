@@ -72,12 +72,17 @@ export function PatternCard({
           </h3>
         </div>
 
-        {/* 移动端：工作室 + 标签同行（studio 左 / 标签右）；PC：工作室独立一行，标签换行。 */}
+        {/* 移动端：工作室 + 标签同行（studio 左 / 标签右，单行不换行，字号缩小）；PC：工作室独立一行，标签换行。 */}
         <div className="flex items-center justify-between gap-2 md:block">
           <p className="shrink-0 text-xs text-muted-foreground">{pattern.studio}</p>
-          <div className="flex flex-wrap justify-end gap-1.5 md:mt-2.5">
+          <div className="flex flex-nowrap justify-end gap-1 overflow-hidden md:mt-2.5 md:flex-wrap md:overflow-visible">
             {pattern.categories.map((cat) => (
-              <CategoryBadge key={cat} category={cat} color={tagColors[cat]} />
+              <CategoryBadge
+                key={cat}
+                category={cat}
+                color={tagColors[cat]}
+                className="px-1.5 py-0 text-[10px] whitespace-nowrap md:px-2 md:py-0.5 md:text-xs"
+              />
             ))}
           </div>
         </div>
