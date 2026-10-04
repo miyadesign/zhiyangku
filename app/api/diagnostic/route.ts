@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     // 4. 测试 PUT 签名
     try {
         const putKey = "diagnostic/test.txt"
-        // @ts-expect-error ali-oss 类型定义不完整
+        // @ts-ignore ali-oss types incomplete
         const url = oss.signatureUrl(putKey, { expires: 60, method: "PUT" })
         checks.putSignature = {
             ok: Boolean(url && url.includes("Signature")),

@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
+import { getAllPatterns } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
 
 function toSignedUrl(key: string | null): string {
@@ -28,8 +29,15 @@ export async function listPatterns() {
   return getAllPatterns()
 }
 
+export type CreatePatternResult = {
+    id: number | null
+    thumbnailUrl: string
+    sizeChartUrl?: string | null
+    fileUrl?: string | null
+}
+
 /** 用 raw SQL 插入纸样，绕开 Drizzle 0.45.x 在 INSERT 多字段时的 param 顺序错位问题。 */
-export async function createPattern(input: PatternInput) {
+export async function createPattern(input: PatternInput): Promise<CreatePatternResult> {
     if (!input.name?.trim()) throw new Error("请填写纸样名称")
     if (!input.studio?.trim()) throw new Error("请选择或填写工作室")
     if (!input.thumbnailUrl) throw new Error("请上传纸样图片")
@@ -51,14 +59,14 @@ export async function createPattern(input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns")
+    revalidateTag("patterns", "layout")
     revalidatePath("/")
     return {
         id: (rows as Array<{ id: number }>)[0]?.id ?? null,
         thumbnailUrl: toSignedUrl(input.thumbnailUrl),
         sizeChartUrl: input.sizeChartUrl ? toSignedUrl(input.sizeChartUrl) : null,
         fileUrl: input.fileUrl ? toSignedUrl(input.fileUrl) : null,
-    }
+    } as CreatePatternResult
 }
 
 /** 批量插入同样绕开 Drizzle */
@@ -87,7 +95,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
         insertedIds.push((rows as Array<{ id: number }>)[0]?.id)
     }
 
-    revalidateTag("patterns")
+    revalidateTag("patterns", "layout")
     revalidatePath("/")
     return insertedIds.length
 }
@@ -114,7 +122,7 @@ export async function updatePattern(id: number, input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns")
+    revalidateTag("patterns", "layout")
     revalidatePath("/")
 }
 
@@ -137,6 +145,6 @@ export async function deletePattern(id: number) {
             ).catch(() => {})
         })
     }
-    revalidateTag("patterns")
+    revalidateTag("patterns", "layout")
     revalidatePath("/")
 }

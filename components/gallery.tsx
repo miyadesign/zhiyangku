@@ -174,6 +174,9 @@ export function Gallery({
 
   // 编辑器保存：本地立即更新或插入条目，后台 fire-and-forget 同步
   async function handleSaved(pattern: EditablePattern | null, input: Parameters<typeof createPattern>[0]) {
+    const isNew = !pattern
+    const tempId = isNew ? -Date.now() : 0
+
     if (pattern) {
       // 更新：直接替换本地条目
       const optimistic: GalleryPattern = {
@@ -190,7 +193,6 @@ export function Gallery({
       setPatterns((prev) => prev.map((p) => (p.id === pattern.id ? optimistic : p)))
     } else {
       // 新增：插到列表头（占位 id = -now，等服务端返回真实 id 后替换）
-      const tempId = -Date.now()
       const optimistic: GalleryPattern = {
         id: tempId,
         name: input.name,
@@ -210,21 +212,25 @@ export function Gallery({
       ? updatePattern(pattern.id, input)
       : createPattern(input)
 
-    if (!pattern) {
+    if (isNew) {
       // 替换乐观占位条目为服务端返回的真实数据（避免图片重新加载）
-      action.then((result) => {
-        if (!result) return
-        const { id, thumbnailUrl, sizeChartUrl, fileUrl } = result
-        setPatterns((prev) =>
-          prev.map((p) =>
-            p.id === tempId
-              ? { ...p, id, thumbnailUrl, sizeChartUrl, fileUrl }
-              : p,
-          ),
-        )
-      }).catch((e) => {
-        toast.error(e instanceof Error ? e.message : "保存失败")
-      })
+      ;(async () => {
+        try {
+          const result = await action
+          if (!result || typeof result !== "object" || !("id" in result)) return
+          const { id: newId, thumbnailUrl, sizeChartUrl, fileUrl } = result
+          if (!newId) return
+          setPatterns((prev) =>
+            prev.map((p) =>
+              p.id === tempId
+                ? { ...p, id: newId, thumbnailUrl: thumbnailUrl ?? p.thumbnailUrl, sizeChartUrl: sizeChartUrl ?? p.sizeChartUrl, fileUrl: fileUrl ?? p.fileUrl }
+                : p,
+            ),
+          )
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "保存失败")
+        }
+      })()
     } else {
       action.catch((e) => {
         toast.error(e instanceof Error ? e.message : "保存失败")
