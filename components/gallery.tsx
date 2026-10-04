@@ -431,7 +431,7 @@ export function Gallery({
 
           {/* 瀑布流 */}
           {filtered.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {filtered.map((pattern) => (
                 <PatternCard
                   key={pattern.id}

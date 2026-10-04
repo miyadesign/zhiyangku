@@ -27,7 +27,8 @@ export function PatternCard({
           className="block w-full cursor-zoom-in text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`查看 ${pattern.name} 高清纸样`}
         >
-          <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+          {/* 移动端 aspect-square（更高），PC 端 aspect-[4/3] */}
+          <div className="relative aspect-square overflow-hidden bg-muted md:aspect-[4/3]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={fileSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
