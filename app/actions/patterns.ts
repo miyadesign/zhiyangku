@@ -59,7 +59,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
         `,
     )
 
-    revalidateTag("patterns", "layout")
+    revalidateTag("patterns")
     revalidatePath("/")
     return {
         id: (rows as Array<{ id: number }>)[0]?.id ?? null,
@@ -95,7 +95,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
         insertedIds.push((rows as Array<{ id: number }>)[0]?.id)
     }
 
-    revalidateTag("patterns", "layout")
+    revalidateTag("patterns")
     revalidatePath("/")
     return insertedIds.length
 }
@@ -122,7 +122,7 @@ export async function updatePattern(id: number, input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns", "layout")
+    revalidateTag("patterns")
     revalidatePath("/")
 }
 
@@ -145,6 +145,6 @@ export async function deletePattern(id: number) {
             ).catch(() => {})
         })
     }
-    revalidateTag("patterns", "layout")
+    revalidateTag("patterns")
     revalidatePath("/")
 }
