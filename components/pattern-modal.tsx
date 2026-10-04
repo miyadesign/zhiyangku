@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react"
-import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
+import {
+  TransformComponent,
+  TransformWrapper,
+  type ReactZoomPanPinchRef,
+} from "react-zoom-pan-pinch"
 import { CategoryBadge } from "@/components/category-badge"
 import { fileSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
 import { cn } from "@/lib/utils"
@@ -55,6 +59,13 @@ export function PatternModal({
   const hasMultiple = imageUrls.length > 1
   const currentSrc = imageUrls[currentIdx] ?? ""
 
+  // react-zoom-pan-pinch 在 scale = 1 时仍然允许 pan，这会让人困惑：
+  // 用户在 100% 时拖拽图片，图片跟着移动却没放大，体验反直觉。
+  // 解决办法：用 onTransform 监测变换，scale ≤ 1 且位移非 0 时强制 reset。
+const transformRef = useRef<ReactZoomPanPinchRef | null>(null)
+// 防止 resetTransform 再次触发 onTransform 导致循环
+const resettingRef = useRef(false)
+
   if (!pattern) return null
 
   return (
@@ -78,10 +89,15 @@ export function PatternModal({
         <div className="relative flex-1 overflow-hidden bg-muted">
           {currentSrc ? (
             <>
-              {/* react-zoom-pan-pinch 提供鼠标滚轮缩放、拖拽、双击放大还原；触屏自动支持捏合手势 */}
+              {/* react-zoom-pan-pinch 提供鼠标滚轮缩放、拖拽、双击放大还原；触屏自动支持捏合手势。
+                scale ≤ 1 时强制重置 transform —— 用户在 100% 时拖拽会被立刻弹回，
+                避免出现"没放大却能拖"的反直觉行为。放大后可以正常拖拽查看细节。 */}
               <TransformWrapper
+                ref={transformRef}
                 key={currentIdx /* 切换图片时重置变换 */}
                 initialScale={1}
+                initialPositionX={0}
+                initialPositionY={0}
                 minScale={1}
                 maxScale={6}
                 wheel={{ step: 0.25 }}
@@ -89,6 +105,18 @@ export function PatternModal({
                 pinch={{ step: 5 }}
                 centerOnInit
                 limitToBounds={false}
+                onTransform={(_ref, state) => {
+                  if (resettingRef.current) {
+                    resettingRef.current = false
+                    return
+                  }
+                  // scale ≤ 1 时强制把位移清零 —— 用户在 100% 时拖拽会被立刻弹回，
+                  // 避免出现"没放大却能拖"的反直觉行为。
+                  if (state.scale <= 1.001 && (state.positionX !== 0 || state.positionY !== 0)) {
+                    resettingRef.current = true
+                    transformRef.current?.resetTransform?.()
+                  }
+                }}
               >
                 {({ zoomIn, zoomOut, resetTransform }) => (
                   <div className="relative flex h-64 w-full items-center justify-center md:h-[70vh]">
@@ -101,7 +129,7 @@ export function PatternModal({
                         src={fileSrc(currentSrc) || "/placeholder.svg"}
                         alt={`${pattern.name} 图片 ${currentIdx + 1}`}
                         draggable={false}
-                        className="max-h-full max-w-full object-contain"
+                        className="max-h-full max-w-full select-none object-contain"
                         onError={imgOnError}
                       />
                     </TransformComponent>
