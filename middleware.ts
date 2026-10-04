@@ -1,30 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 
 /**
- * 在 Vercel Edge 层统一处理 CORS preflight（OPTIONS）。
+ * Vercel Edge Middleware 在 serverless 函数之前运行，OPTIONS 会先到 Edge。
+ * 为避免 Edge → cold start 的 2s 延迟，我们让 OPTIONS 路径跳过中间件，
+ * 直接在 route.ts 里处理（CORS preflight 由服务端返回 204）。
  *
- * 为什么不写在 /api/sign-upload/route.ts 里：
- * - Next.js serverless 函数里的 OPTIONS 需要经过 Edge → cold start → 函数启动
- * - 跨洲时 cold start ~2s，OPTIONS 经常 504 超时
- * - Middleware 运行在 Edge 节点（毫秒级响应），直接返回 204，不走函数
+ * 如果 Edge Middleware 出问题（如 MIDDLEWARE_INVOCATION_FAILED），
+ * 注释掉下面一行即可让请求直达 serverless 函数。
  */
 export function middleware(request: NextRequest) {
-    // 只拦截 OPTIONS 请求
-    if (request.method === "OPTIONS") {
-        return new NextResponse(null, {
-            status: 204,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Max-Age": "3600",
-            },
-        })
-    }
-    // 非 OPTIONS 继续正常处理
     return NextResponse.next()
 }
 
 export const config = {
-    matcher: ["/api/:path*"],
+    // 匹配所有路径（方便未来扩展）
+    matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
