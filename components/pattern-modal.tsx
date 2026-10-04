@@ -59,10 +59,9 @@ export function PatternModal({
   const hasMultiple = imageUrls.length > 1
   const currentSrc = imageUrls[currentIdx] ?? ""
 
-  // react-zoom-pan-pinch 在 scale = 1 时仍然允许 pan，这会让人困惑：
-  // 用户在 100% 时拖拽图片，图片跟着移动却没放大，体验反直觉。
-  // 解决办法：监听 onPanningStart，如果当前不是放大状态就立即阻止 pan。
-  //   （scale → 1 时也要 resetTransform 清掉残留位移。）
+  // react-zoom-pan-pinch 在 scale = 1 时仍然允许 pan，体验反直觉。
+  // 解决：panning.disabled 直接绑定到 isZoomed（源码 2541 行：mousedown 时直接 return），
+  // 同时 onTransform 跟踪 scale，scale ≤ 1 时 resetTransform 清掉残留位移。
   const [isZoomed, setIsZoomed] = useState(false)
   const transformRef = useRef<ReactZoomPanPinchRef | null>(null)
   // 防止 resetTransform 再次触发 onTransform 导致循环
@@ -120,13 +119,7 @@ export function PatternModal({
                     transformRef.current?.resetTransform?.()
                   }
                 }}
-                onPanningStart={(_ref, event) => {
-                  // 100% 时阻止 pan —— 用户放大后才能拖动查看细节
-                  if (!isZoomed) {
-                    event.preventDefault()
-                    event.stopPropagation()
-                  }
-                }}
+                panning={{ disabled: !isZoomed }}
               >
                 {({ zoomIn, zoomOut }) => (
                   <div className="relative flex h-64 w-full items-center justify-center md:h-[70vh]">
