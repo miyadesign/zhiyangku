@@ -286,38 +286,41 @@ export function Gallery({
       {/* 顶部栏 */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
-          {/* Logo + 搜索 + 按钮 —— 移动端两行，PC 同一行 */}
+          {/* 移动端：第一行 = logo + 搜索；第二行 = 按钮。PC：同一行 */}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
-            <div className="flex items-center gap-2">
-              <Ruler className="size-5 text-primary" aria-hidden="true" />
-              <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
-                纸样库
-              </span>
-            </div>
+            {/* 移动端第一行：logo + 搜索框同行。PC：只显示 logo。 */}
+            <div className="flex items-center gap-2 md:contents">
+              <div className="flex shrink-0 items-center gap-2">
+                <Ruler className="size-5 text-primary" aria-hidden="true" />
+                <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
+                  纸样库
+                </span>
+              </div>
 
-            <div className="relative min-w-0 flex-1 md:max-w-xl">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索工作室 / 品类 / 款式 / 尺码…"
-                aria-label="全局搜索纸样"
-                className="w-full rounded-full border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="清除搜索"
-                  className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  <X className="size-3.5" />
-                </button>
-              )}
+              <div className="relative min-w-0 flex-1 md:max-w-xl">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="搜索工作室 / 品类 / 款式 / 尺码…"
+                  aria-label="全局搜索纸样"
+                  className="w-full rounded-full border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="清除搜索"
+                    className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">

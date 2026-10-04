@@ -72,12 +72,14 @@ export function PatternCard({
           </h3>
         </div>
 
-        <p className="text-xs text-muted-foreground">{pattern.studio}</p>
-
-        <div className="flex flex-wrap gap-1.5">
-          {pattern.categories.map((cat) => (
-            <CategoryBadge key={cat} category={cat} color={tagColors[cat]} />
-          ))}
+        {/* 移动端：工作室 + 标签同行（studio 左 / 标签右）；PC：工作室独立一行，标签换行。 */}
+        <div className="flex items-center justify-between gap-2 md:block">
+          <p className="shrink-0 text-xs text-muted-foreground">{pattern.studio}</p>
+          <div className="flex flex-wrap justify-end gap-1.5 md:mt-2.5">
+            {pattern.categories.map((cat) => (
+              <CategoryBadge key={cat} category={cat} color={tagColors[cat]} />
+            ))}
+          </div>
         </div>
       </div>
     </div>
