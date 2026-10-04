@@ -9,12 +9,7 @@ const nextConfig = {
     },
     devIndicators: false,
     serverExternalPackages: ["ali-oss", "@neondatabase/serverless"],
-    // 上传路由允许更大 body（Vercel 默认 4.5MB，直接调 API 的 upload 需要更多空间）
-    api: {
-        bodyParser: {
-            sizeLimit: "10mb",
-        },
-    },
+    // Vercel 函数 body 限制在 vercel.json 里配，这里不需要 api.bodyParser
 }
 
 export default nextConfig
