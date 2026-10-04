@@ -1,7 +1,6 @@
 "use client"
 
 import { Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { createPattern, createPatternsBatch, deletePattern, updatePattern } from "@/app/actions/patterns"
@@ -42,7 +41,6 @@ export function Gallery({
   patterns: GalleryPattern[]
   tags: AdminTag[]
 }) {
-  const router = useRouter()
   const [studio, setStudio] = useState<string>("all")
   const [categories, setCategories] = useState<string[]>([])
   const [query, setQuery] = useState("")
@@ -207,18 +205,13 @@ export function Gallery({
       setPatterns((prev) => [optimistic, ...prev])
     }
 
-    // 后台同步到服务器
+    // 同步到服务器（fire-and-forget，乐观更新已让 UI 立即反映变化）
     const action = pattern
       ? updatePattern(pattern.id, input)
       : createPattern(input)
-    try {
-      await action
-      // 触发服务端列表缓存失效（不阻塞 UI）；unstable_cache 30s 内重新读 DB
-      router.refresh()
-    } catch (e) {
+    action.catch((e) => {
       toast.error(e instanceof Error ? e.message : "保存失败")
-      // 失败时不强行回滚，让用户能看到自己的操作；下次 router.refresh 会修正
-    }
+    })
   }
 
   // 批量上传完成：本地立即插入全部条目，后台 fire-and-forget 批量写入
@@ -236,12 +229,9 @@ export function Gallery({
       note: it.note ?? null,
     }))
     setPatterns((prev) => [...optimistic, ...prev])
-    // 后台异步批量写入
+    // 后台异步批量写入（fire-and-forget，乐观更新已让 UI 立即反映变化）
     createPatternsBatch(items).catch((e) => {
       toast.error(e instanceof Error ? e.message : "批量保存失败")
-    }).finally(() => {
-      // 写完后异步刷新一次拿真实 id
-      router.refresh()
     })
   }
 
