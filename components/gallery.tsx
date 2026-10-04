@@ -29,7 +29,6 @@ function downloadPattern(pattern: GalleryPattern) {
   const url = downloadSrc(pattern.fileUrl, pattern.fileName)
   const a = document.createElement("a")
   a.href = url
-  document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
 }
@@ -285,9 +284,9 @@ export function Gallery({
     <div className="min-h-screen bg-background">
       {/* 顶部栏 */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6">
+        <div className="mx-auto max-w-[1400px] px-4 py-2 sm:px-6 md:py-3">
           {/* 移动端：第一行 = logo + 搜索；第二行 = 按钮。PC：同一行 */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
             {/* 移动端第一行：logo + 搜索框同行。PC：只显示 logo。 */}
             <div className="flex items-center gap-2 md:contents">
               <div className="flex shrink-0 items-center gap-2">
@@ -326,7 +325,7 @@ export function Gallery({
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={() => setTagManagerOpen(true)}
               >
                 <Tags className="mr-1.5 size-4" />
@@ -334,13 +333,13 @@ export function Gallery({
               </Button>
               <Button
                 variant="outline"
-                size="sm"
+                size="default"
                 onClick={() => setBatchOpen(true)}
               >
                 <Upload className="mr-1.5 size-4" />
                 批量上传
               </Button>
-              <Button size="sm" onClick={openCreate}>
+              <Button size="default" onClick={openCreate}>
                 <Plus className="mr-1.5 size-4" />
                 新增纸样
               </Button>
@@ -351,7 +350,7 @@ export function Gallery({
 
       <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row">
         {/* 左侧工作室导航 —— PC 端固定 */}
-        <aside className="shrink-0 border-b border-border px-4 py-4 md:sticky md:top-[81px] md:h-[calc(100vh-81px)] md:w-56 md:self-start md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-6">
+        <aside className="shrink-0 border-b border-border px-4 py-4 md:sticky md:top-[85px] md:h-[calc(100vh-85px)] md:w-56 md:self-start md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-6">
           <nav className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
             {studioItems.map((item) => {
               const isActive = studio === item.key
