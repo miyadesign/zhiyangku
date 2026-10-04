@@ -205,20 +205,40 @@ export function Gallery({
       setPatterns((prev) => [optimistic, ...prev])
     }
 
-    // 同步到服务器（fire-and-forget，乐观更新已让 UI 立即反映变化）
+    // 同步到服务器，服务端返回真实 id 和签名 URL
     const action = pattern
       ? updatePattern(pattern.id, input)
       : createPattern(input)
-    action.catch((e) => {
-      toast.error(e instanceof Error ? e.message : "保存失败")
-    })
+
+    if (!pattern) {
+      // 替换乐观占位条目为服务端返回的真实数据（避免图片重新加载）
+      action.then((result) => {
+        if (!result) return
+        const { id, thumbnailUrl, sizeChartUrl, fileUrl } = result
+        setPatterns((prev) =>
+          prev.map((p) =>
+            p.id === tempId
+              ? { ...p, id, thumbnailUrl, sizeChartUrl, fileUrl }
+              : p,
+          ),
+        )
+      }).catch((e) => {
+        toast.error(e instanceof Error ? e.message : "保存失败")
+      })
+    } else {
+      action.catch((e) => {
+        toast.error(e instanceof Error ? e.message : "保存失败")
+      })
+    }
   }
 
   // 批量上传完成：本地立即插入全部条目，后台 fire-and-forget 批量写入
   function handleBatchSaved(items: BatchUploadItem[]) {
     const now = Date.now()
+    // 同一批里每个 item 用唯一 tempId，方便后续按 id 替换
+    const tempIds: number[] = items.map((_, idx) => -(now + idx))
     const optimistic: GalleryPattern[] = items.map((it, idx) => ({
-      id: -(now + idx),
+      id: tempIds[idx],
       name: it.name,
       studio: it.studio,
       categories: it.categories ?? [],
@@ -229,7 +249,7 @@ export function Gallery({
       note: it.note ?? null,
     }))
     setPatterns((prev) => [...optimistic, ...prev])
-    // 后台异步批量写入（fire-and-forget，乐观更新已让 UI 立即反映变化）
+    // fire-and-forget，后台异步批量写入（当前页面已有乐观数据，无需替换）
     createPatternsBatch(items).catch((e) => {
       toast.error(e instanceof Error ? e.message : "批量保存失败")
     })

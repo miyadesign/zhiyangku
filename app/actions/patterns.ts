@@ -4,9 +4,14 @@ import { eq } from "drizzle-orm"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns } from "@/lib/db/schema"
-import { deleteFromOss } from "@/lib/oss"
-import { getAllPatterns } from "@/lib/queries"
+import { deleteFromOss, signUrl } from "@/lib/oss"
 import { queryWithRetry } from "@/lib/db/retry"
+
+function toSignedUrl(key: string | null): string {
+  if (!key) return ""
+  if (/^https?:\/\//i.test(key)) return key
+  return signUrl(key)
+}
 
 export type PatternInput = {
   name: string
@@ -48,7 +53,12 @@ export async function createPattern(input: PatternInput) {
 
     revalidateTag("patterns")
     revalidatePath("/")
-    return (rows as Array<{ id: number }>)[0]?.id ?? null
+    return {
+        id: (rows as Array<{ id: number }>)[0]?.id ?? null,
+        thumbnailUrl: toSignedUrl(input.thumbnailUrl),
+        sizeChartUrl: input.sizeChartUrl ? toSignedUrl(input.sizeChartUrl) : null,
+        fileUrl: input.fileUrl ? toSignedUrl(input.fileUrl) : null,
+    }
 }
 
 /** 批量插入同样绕开 Drizzle */
