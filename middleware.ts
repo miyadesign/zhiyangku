@@ -26,5 +26,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/api/sign-upload/:path*"],
+    matcher: ["/api/:path*"],
 }

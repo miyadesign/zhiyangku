@@ -22,7 +22,9 @@ import crypto from "crypto"
  * - 超 10s 才重新付握手（跨洲链路不稳定，idle 太长会被中途 RESET）
  */
 
-const region = process.env.ALI_OSS_REGION || "ap-southeast-1"
+// 支持两种格式：纯 region（如 "ap-southeast-1"）或带前缀（如 "oss-ap-southeast-1"）
+const rawRegion = process.env.ALI_OSS_REGION || "ap-southeast-1"
+const region = rawRegion.replace(/^oss-/, "")
 const bucket = process.env.ALI_OSS_BUCKET || "zhiyangku"
 const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
 const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
