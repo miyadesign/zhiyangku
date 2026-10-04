@@ -66,20 +66,18 @@ export const verification = pgTable("verification", {
  * 后台的写操作统一要求登录，写入者记录在 createdBy。
  * ------------------------------------------------------------------------- */
 export const patterns = pgTable("patterns", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  studio: text("studio").notNull(),
-  categories: text("categories").array().notNull().default([]),
-  // 私有 Blob 的 pathname，通过 /api/file 代理访问
-  thumbnailUrl: text("thumbnail_url").notNull(),
-  // 尺码表图片，非必填
-  sizeChartUrl: text("size_chart_url"),
-  // 电子版纸样文件（pdf / zip / plt 等），非图片，用于下载
-  fileUrl: text("file_url"),
-  fileName: text("file_name"),
-  note: text("note"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    studio: text("studio").notNull(),
+    categories: text("categories").array().notNull().default([]),
+    /** 所有图片 key 数组（OSS key），第一张为主图/缩略图。原 size_chart_url 已合并进来。 */
+    images: text("images").array().notNull().default([]),
+    // 电子版纸样文件（pdf / zip / plt 等），非图片，用于下载
+    fileUrl: text("file_url"),
+    fileName: text("file_name"),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
 })
 
 export type PatternRow = typeof patterns.$inferSelect

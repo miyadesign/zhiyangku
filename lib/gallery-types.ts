@@ -3,10 +3,10 @@ export type GalleryPattern = {
     name: string
     studio: string
     categories: string[]
-    /** OSS 签名 URL（已在服务端缓存层生成），前端直接展示 */
+    /** 所有图片签名 URL 数组（已在服务端缓存层生成），第一张是主图 / 缩略图 */
+    imageUrls: string[]
+    /** 主图 URL，等价于 imageUrls[0] ?? ""。保留以兼容卡片等只用单图的场景 */
     thumbnailUrl: string
-    /** OSS 签名 URL（尺码表图片，可空） */
-    sizeChartUrl: string | null
     /** OSS 签名 URL（电子版纸样文件，可空） */
     fileUrl: string | null
     /** 电子版纸样文件的原始文件名（下载时使用） */

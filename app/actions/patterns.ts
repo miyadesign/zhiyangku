@@ -9,30 +9,35 @@ import { getAllPatterns } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
 
 function toSignedUrl(key: string | null): string {
-  if (!key) return ""
-  if (/^https?:\/\//i.test(key)) return key
-  return signUrl(key)
+    if (!key) return ""
+    if (/^https?:\/\//i.test(key)) return key
+    return signUrl(key)
+}
+
+/** 过滤掉空字符串/null，保证存进 DB 的数组干净 */
+function cleanImageKeys(input: string[]): string[] {
+    return input.filter((k): k is string => typeof k === "string" && k.trim() !== "")
 }
 
 export type PatternInput = {
-  name: string
-  studio: string
-  categories: string[]
-  thumbnailUrl: string
-  sizeChartUrl?: string | null
-  fileUrl?: string | null
-  fileName?: string | null
-  note?: string | null
+    name: string
+    studio: string
+    categories: string[]
+    /** 图片 key 数组，至少 1 张。第一张为主图/缩略图。 */
+    images: string[]
+    fileUrl?: string | null
+    fileName?: string | null
+    note?: string | null
 }
 
 export async function listPatterns() {
-  return getAllPatterns()
+    return getAllPatterns()
 }
 
 export type CreatePatternResult = {
     id: number | null
+    imageUrls: string[]
     thumbnailUrl: string
-    sizeChartUrl?: string | null
     fileUrl?: string | null
 }
 
@@ -40,17 +45,19 @@ export type CreatePatternResult = {
 export async function createPattern(input: PatternInput): Promise<CreatePatternResult> {
     if (!input.name?.trim()) throw new Error("请填写纸样名称")
     if (!input.studio?.trim()) throw new Error("请选择或填写工作室")
-    if (!input.thumbnailUrl) throw new Error("请上传纸样图片")
+    const imageKeys = cleanImageKeys(input.images)
+    if (imageKeys.length === 0) throw new Error("请上传纸样图片")
+    const primaryKey = imageKeys[0]!
 
     const rows = await queryWithRetry(() =>
         sqlDb`
-            INSERT INTO patterns (name, studio, categories, thumbnail_url, size_chart_url, file_url, file_name, note)
+            INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, note)
             VALUES (
                 ${input.name.trim()},
                 ${input.studio.trim()},
                 ${input.categories ?? []}::text[],
-                ${input.thumbnailUrl},
-                ${input.sizeChartUrl || null},
+                ${primaryKey},
+                ${imageKeys}::text[],
                 ${input.fileUrl || null},
                 ${input.fileName?.trim() || null},
                 ${input.note?.trim() || null}
@@ -60,30 +67,35 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
     )
 
     updateTag("patterns")
+    const imageUrls = imageKeys.map(toSignedUrl)
     return {
         id: (rows as Array<{ id: number }>)[0]?.id ?? null,
-        thumbnailUrl: toSignedUrl(input.thumbnailUrl),
-        sizeChartUrl: input.sizeChartUrl ? toSignedUrl(input.sizeChartUrl) : null,
+        imageUrls,
+        thumbnailUrl: imageUrls[0] ?? "",
         fileUrl: input.fileUrl ? toSignedUrl(input.fileUrl) : null,
     } as CreatePatternResult
 }
 
 /** 批量插入同样绕开 Drizzle */
 export async function createPatternsBatch(inputs: PatternInput[]) {
-    const valid = inputs.filter((i) => i.name?.trim() && i.studio?.trim() && i.thumbnailUrl)
+    const valid = inputs.filter(
+        (i) => i.name?.trim() && i.studio?.trim() && cleanImageKeys(i.images).length > 0,
+    )
     if (valid.length === 0) throw new Error("没有可导入的有效数据")
 
     const insertedIds: number[] = []
     for (const input of valid) {
+        const imageKeys = cleanImageKeys(input.images)
+        const primaryKey = imageKeys[0]!
         const rows = await queryWithRetry(() =>
             sqlDb`
-                INSERT INTO patterns (name, studio, categories, thumbnail_url, size_chart_url, file_url, file_name, note)
+                INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, note)
                 VALUES (
                     ${input.name.trim()},
                     ${input.studio.trim()},
                     ${input.categories ?? []}::text[],
-                    ${input.thumbnailUrl},
-                    ${input.sizeChartUrl || null},
+                    ${primaryKey},
+                    ${imageKeys}::text[],
                     ${input.fileUrl || null},
                     ${input.fileName?.trim() || null},
                     ${input.note?.trim() || null}
@@ -102,7 +114,9 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
 export async function updatePattern(id: number, input: PatternInput) {
     if (!input.name?.trim()) throw new Error("请填写纸样名称")
     if (!input.studio?.trim()) throw new Error("请选择或填写工作室")
-    if (!input.thumbnailUrl) throw new Error("请上传纸样图片")
+    const imageKeys = cleanImageKeys(input.images)
+    if (imageKeys.length === 0) throw new Error("请上传纸样图片")
+    const primaryKey = imageKeys[0]!
 
     await queryWithRetry(() =>
         sqlDb`
@@ -110,8 +124,8 @@ export async function updatePattern(id: number, input: PatternInput) {
                 name = ${input.name.trim()},
                 studio = ${input.studio.trim()},
                 categories = ${input.categories ?? []}::text[],
-                thumbnail_url = ${input.thumbnailUrl},
-                size_chart_url = ${input.sizeChartUrl || null},
+                thumbnail_url = ${primaryKey},
+                images = ${imageKeys}::text[],
                 file_url = ${input.fileUrl || null},
                 file_name = ${input.fileName?.trim() || null},
                 note = ${input.note?.trim() || null},
@@ -132,7 +146,10 @@ export async function deletePattern(id: number) {
         // 先删 DB，立刻响应客户端；OSS 清理后台异步进行
         await queryDb((db) => db.delete(patterns).where(eq(patterns.id, id)))
         // 后台清理 OSS 资源（不阻塞删除请求）
-        const keys = [row.thumbnailUrl, row.sizeChartUrl, row.fileUrl].filter(Boolean) as string[]
+        const keys = [
+            ...(row.images ?? []),
+            row.fileUrl ?? null,
+        ].filter(Boolean) as string[]
         queueMicrotask(() => {
             Promise.all(
                 keys.map((key) => {

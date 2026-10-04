@@ -22,8 +22,11 @@ const TEMPLATE_HEADERS = [
   "名称",
   "工作室",
   "品类标签",
-  "缩略图文件名",
-  "尺码表文件名",
+  "图1",
+  "图2",
+  "图3",
+  "图4",
+  "图5",
   "电子文件名",
   "备注",
 ] as const
@@ -35,6 +38,9 @@ const TEMPLATE_EXAMPLE = [
   "上衣;女",
   "shirt.png",
   "shirt-size.png",
+  "",
+  "",
+  "",
   "shirt.pdf",
   "春夏新款",
 ]
@@ -96,8 +102,8 @@ type ParsedRow = {
   name: string
   studio: string
   categories: string[]
-  thumbnailName: string
-  sizeChartName: string
+  /** 图片文件名数组（按顺序，第一张为主图）。空字符串会被过滤掉。 */
+  imageNames: string[]
   fileName: string
   note: string
   errors: string[]
@@ -182,16 +188,34 @@ export function BatchUpload({
       }
       const [, ...dataRows] = parsed
       const out: ParsedRow[] = dataRows.map((cols, i) => {
-        const [name = "", studio = "", tags = "", thumb = "", size = "", file = "", note = ""] =
-          cols.map((c) => c.trim())
+        const c = cols.map((v) => v.trim())
+        const [name = "", studio = "", tags = "", ...rest] = c
+        // 列 4..8 为 5 张图片文件名（"图1".."图5"），过滤掉空字符串
+        const imageNames = rest.slice(0, 5).filter((v) => v !== "")
+        // 紧跟其后是电子文件名 + 备注（向后兼容：旧版 CSV 只有 1 张缩略图 + 1 张尺码表）
+        // 这里按列号自动判断：如果 imageNames 后面只剩 2 列，按 [电子文件名, 备注]
+        const tail = rest.slice(5)
+        let fileName = ""
+        let note = ""
+        if (tail.length >= 2) {
+          fileName = tail[0] ?? ""
+          note = tail[1] ?? ""
+        } else if (tail.length === 1) {
+          // 只有 1 列，可能是备注或电子文件名——按是否有扩展名启发式判断
+          const v = tail[0] ?? ""
+          if (/\.[a-z0-9]{2,4}$/i.test(v)) {
+            fileName = v
+          } else {
+            note = v
+          }
+        }
         return {
           index: i + 1,
           name,
           studio,
           categories: splitTags(tags),
-          thumbnailName: thumb,
-          sizeChartName: size,
-          fileName: file,
+          imageNames,
+          fileName,
           note,
           errors: [],
         }
@@ -214,11 +238,12 @@ export function BatchUpload({
       const errors: string[] = []
       if (!r.name) errors.push("缺少名称")
       if (!r.studio) errors.push("缺少工作室")
-      if (!r.thumbnailName) errors.push("缺少缩略图文件名")
-      else if (!files.has(r.thumbnailName))
-        errors.push(`未找到缩略图「${r.thumbnailName}」`)
-      if (r.sizeChartName && !files.has(r.sizeChartName))
-        errors.push(`未找到尺码表「${r.sizeChartName}」`)
+      if (r.imageNames.length === 0) errors.push("缺少图片文件名")
+      else {
+        for (const n of r.imageNames) {
+          if (!files.has(n)) errors.push(`未找到图片「${n}」`)
+        }
+      }
       if (r.fileName && !files.has(r.fileName))
         errors.push(`未找到电子文件「${r.fileName}」`)
       return { ...r, errors }
@@ -244,8 +269,7 @@ export function BatchUpload({
     const queue = valid.slice()
     const results: Array<PromiseSettledResult<{
       r: (typeof valid)[number]
-      thumbnailUrl: string
-      sizeChartUrl: string | null
+      images: string[]
       fileUrl: string | null
     }>> = new Array(valid.length)
 
@@ -260,15 +284,16 @@ export function BatchUpload({
 
     async function processRow(idx: number, r: (typeof valid)[number]) {
       try {
-        // 同一行的 3 个文件可能都未上传，并行启动（各自的 cache 兜住）
-        const [thumbnailUrl, sizeChartUrl, fileUrl] = await Promise.all([
-          uploadOneQueued(files.get(r.thumbnailName)!, "images"),
-          r.sizeChartName ? uploadOneQueued(files.get(r.sizeChartName)!, "images") : Promise.resolve(null),
+        // 同一行的 N 个图片 + 电子文件并行上传
+        const [imageKeys, fileUrl] = await Promise.all([
+          Promise.all(
+            r.imageNames.map((n) => uploadOneQueued(files.get(n)!, "images")),
+          ),
           r.fileName ? uploadOneQueued(files.get(r.fileName)!, "files") : Promise.resolve(null),
         ])
         results[idx] = {
           status: "fulfilled",
-          value: { r, thumbnailUrl, sizeChartUrl, fileUrl },
+          value: { r, images: imageKeys, fileUrl },
         }
       } catch (e) {
         results[idx] = { status: "rejected", reason: e }
@@ -297,13 +322,12 @@ export function BatchUpload({
     for (let i = 0; i < results.length; i++) {
       const item = results[i]
       if (item.status === "fulfilled") {
-        const { r, thumbnailUrl, sizeChartUrl, fileUrl } = item.value
+        const { r, images, fileUrl } = item.value
         inputs.push({
           name: r.name,
           studio: r.studio,
           categories: r.categories,
-          thumbnailUrl,
-          sizeChartUrl,
+          images,
           fileUrl,
           fileName: r.fileName || null,
           note: r.note || null,
@@ -348,8 +372,8 @@ export function BatchUpload({
             <p className="text-xs leading-relaxed text-muted-foreground">
               下载 CSV 模版，按列填写纸样信息。品类标签用分号
               <span className="mx-0.5 rounded bg-muted px-1">;</span>
-              分隔。图片 / 电子文件列填写<strong>文件名</strong>
-              （如 shirt.png），稍后一起选择这些文件即可自动匹配。缩略图为必填。
+              分隔。图1-图5 填写<strong>文件名</strong>
+              （如 shirt.png），至少填写图1；选择文件时一起选上即可自动按文件名匹配。第一张图（"图1"）作为主图。
             </p>
             <Button
               type="button"

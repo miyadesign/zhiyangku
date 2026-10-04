@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ImageUpload } from "@/components/image-upload"
+import { MultiImageUpload } from "@/components/multi-image-upload"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,8 +26,8 @@ export type EditablePattern = {
   name: string
   studio: string
   categories: string[]
-  thumbnailUrl: string
-  sizeChartUrl: string | null
+  /** 所有图片 key 数组，第一张是主图 */
+  images: string[]
   fileUrl: string | null
   fileName: string | null
   note: string | null
@@ -59,12 +60,8 @@ export function PatternEditor({
   const [categories, setCategories] = useState<string[]>(
     pattern?.categories ?? [],
   )
-  const [thumbnail, setThumbnail] = useState<string | null>(
-    pattern?.thumbnailUrl ?? null,
-  )
-  const [sizeChart, setSizeChart] = useState<string | null>(
-    pattern?.sizeChartUrl ?? null,
-  )
+  // 图片：统一为数组。第一张是主图。
+  const [images, setImages] = useState<string[]>(pattern?.images ?? [])
   const [fileUrl, setFileUrl] = useState<string | null>(pattern?.fileUrl ?? null)
   const [fileName, setFileName] = useState<string | null>(
     pattern?.fileName ?? null,
@@ -82,14 +79,13 @@ export function PatternEditor({
     const finalStudio = addingStudio ? newStudio.trim() : studio
     if (!name.trim()) return toast.error("请填写纸样名称")
     if (!finalStudio) return toast.error("请选择或填写工作室")
-    if (!thumbnail) return toast.error("请上传纸样图片")
+    if (images.length === 0) return toast.error("请至少上传一张纸样图片")
 
     const input: PatternInput = {
       name: name.trim(),
       studio: finalStudio,
       categories,
-      thumbnailUrl: thumbnail,
-      sizeChartUrl: sizeChart,
+      images,
       fileUrl,
       fileName,
       note: note.trim() || null,
@@ -203,17 +199,10 @@ export function PatternEditor({
             )}
           </div>
 
-          <ImageUpload
-            label="纸样图片（缩略图 / 大图）"
-            value={thumbnail}
-            onChange={(p) => setThumbnail(p)}
-            inputId="upload-thumbnail"
-          />
-          <ImageUpload
-            label="尺码表图片（可选）"
-            inputId="upload-size-chart"
-            value={sizeChart}
-            onChange={(p) => setSizeChart(p)}
+          <MultiImageUpload
+            label="纸样图片（第一张为主图 / 缩略图）"
+            values={images}
+            onChange={setImages}
           />
 
           <ImageUpload

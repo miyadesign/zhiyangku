@@ -1,13 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Download, Minus, Plus, RotateCcw, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, X } from "lucide-react"
+import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch"
 import { CategoryBadge } from "@/components/category-badge"
 import { fileSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
 import { cn } from "@/lib/utils"
-
-const MIN_SCALE = 1
-const MAX_SCALE = 4
 
 export function PatternModal({
   pattern,
@@ -20,26 +18,22 @@ export function PatternModal({
   onClose: () => void
   onDownload: (pattern: GalleryPattern) => void
 }) {
-  const [scale, setScale] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const dragging = useRef(false)
-  const last = useRef({ x: 0, y: 0 })
+  // 当前显示的图片下标
+  const [currentIdx, setCurrentIdx] = useState(0)
 
-  const resetView = useCallback(() => {
-    setScale(1)
-    setOffset({ x: 0, y: 0 })
-  }, [])
-
-  // 切换纸样时重置视图
+  // 切换纸样时回到第一张
   useEffect(() => {
-    resetView()
-  }, [pattern, resetView])
+    setCurrentIdx(0)
+  }, [pattern])
 
-  // 键盘 ESC 关闭 + 锁定滚动
+  // 键盘：切换纸样时重置、ESC 关闭、左右键切图
   useEffect(() => {
     if (!pattern) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose()
+      else if (e.key === "ArrowLeft") setCurrentIdx((i) => Math.max(0, i - 1))
+      else if (e.key === "ArrowRight")
+        setCurrentIdx((i) => Math.min((pattern.imageUrls?.length ?? 1) - 1, i + 1))
     }
     document.addEventListener("keydown", onKey)
     const prev = document.body.style.overflow
@@ -50,40 +44,16 @@ export function PatternModal({
     }
   }, [pattern, onClose])
 
-  const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s))
+  const goPrev = useCallback(() => {
+    setCurrentIdx((i) => Math.max(0, i - 1))
+  }, [])
+  const goNext = useCallback(() => {
+    setCurrentIdx((i) => Math.min((pattern?.imageUrls?.length ?? 1) - 1, i + 1))
+  }, [pattern])
 
-  const zoomBy = (delta: number) => {
-    setScale((s) => {
-      const next = clampScale(Number((s + delta).toFixed(2)))
-      if (next === MIN_SCALE) setOffset({ x: 0, y: 0 })
-      return next
-    })
-  }
-
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.25 : 0.25
-    zoomBy(delta)
-  }
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (scale <= 1) return
-    dragging.current = true
-    last.current = { x: e.clientX, y: e.clientY }
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return
-    const dx = e.clientX - last.current.x
-    const dy = e.clientY - last.current.y
-    last.current = { x: e.clientX, y: e.clientY }
-    setOffset((o) => ({ x: o.x + dx, y: o.y + dy }))
-  }
-
-  const endDrag = () => {
-    dragging.current = false
-  }
+  const imageUrls = pattern?.imageUrls ?? []
+  const hasMultiple = imageUrls.length > 1
+  const currentSrc = imageUrls[currentIdx] ?? ""
 
   if (!pattern) return null
 
@@ -92,7 +62,7 @@ export function PatternModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
-      aria-label={`${pattern.name} 尺码表`}
+      aria-label={`${pattern.name} 纸样详情`}
     >
       {/* 遮罩 */}
       <button
@@ -104,78 +74,128 @@ export function PatternModal({
 
       {/* 内容 */}
       <div className="relative z-10 flex max-h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl md:flex-row">
-        {/* 尺码表图像区 */}
+        {/* 图片浏览区 */}
         <div className="relative flex-1 overflow-hidden bg-muted">
-          {pattern.sizeChartUrl ? (
+          {currentSrc ? (
             <>
-              <div
-                className={cn(
-                  "flex h-64 w-full items-center justify-center overflow-hidden select-none md:h-[70vh]",
-                  scale > 1
-                    ? "cursor-grab active:cursor-grabbing"
-                    : "cursor-zoom-in",
-                )}
-                onWheel={onWheel}
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={endDrag}
-                onPointerLeave={endDrag}
-                onDoubleClick={() => (scale > 1 ? resetView() : zoomBy(1))}
+              {/* react-zoom-pan-pinch 提供鼠标滚轮缩放、拖拽、双击放大还原；触屏自动支持捏合手势 */}
+              <TransformWrapper
+                key={currentIdx /* 切换图片时重置变换 */}
+                initialScale={1}
+                minScale={1}
+                maxScale={6}
+                wheel={{ step: 0.25 }}
+                doubleClick={{ mode: "toggle", step: 2 }}
+                pinch={{ step: 5 }}
+                centerOnInit
+                limitToBounds={false}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={fileSrc(pattern.sizeChartUrl) || "/placeholder.svg"}
-                  alt={`${pattern.name} 尺码表`}
-                  draggable={false}
-                  className="max-h-full max-w-full object-contain transition-transform duration-75"
-                  style={{
-                    transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-                  }}
-                />
-              </div>
+                {({ zoomIn, zoomOut, resetTransform }) => (
+                  <div className="relative flex h-64 w-full items-center justify-center md:h-[70vh]">
+                    <TransformComponent
+                      wrapperClass="!w-full !h-full"
+                      contentClass="!w-full !h-full !flex !items-center !justify-center"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={fileSrc(currentSrc) || "/placeholder.svg"}
+                        alt={`${pattern.name} 图片 ${currentIdx + 1}`}
+                        draggable={false}
+                        className="max-h-full max-w-full object-contain"
+                        onError={imgOnError}
+                      />
+                    </TransformComponent>
 
-              {/* 缩放控制 */}
-              <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/90 p-1 shadow-sm backdrop-blur">
-                <button
-                  type="button"
-                  onClick={() => zoomBy(-0.5)}
-                  disabled={scale <= MIN_SCALE}
-                  className="inline-flex size-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent disabled:opacity-40"
-                  aria-label="缩小"
-                >
-                  <Minus className="size-4" />
-                </button>
-                <span className="w-10 text-center text-xs tabular-nums text-muted-foreground">
-                  {Math.round(scale * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => zoomBy(0.5)}
-                  disabled={scale >= MAX_SCALE}
-                  className="inline-flex size-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent disabled:opacity-40"
-                  aria-label="放大"
-                >
-                  <Plus className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={resetView}
-                  className="inline-flex size-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
-                  aria-label="重置视图"
-                >
-                  <RotateCcw className="size-4" />
-                </button>
-              </div>
+                    {/* 缩放控制 + 重置 */}
+                    <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/90 p-1 shadow-sm backdrop-blur">
+                      <button
+                        type="button"
+                        onClick={() => zoomOut()}
+                        className="inline-flex size-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
+                        aria-label="缩小"
+                      >
+                        <ZoomOutIcon />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resetTransform()}
+                        className="px-2 text-xs tabular-nums text-muted-foreground hover:text-foreground"
+                        aria-label="重置视图"
+                      >
+                        重置
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => zoomIn()}
+                        className="inline-flex size-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
+                        aria-label="放大"
+                      >
+                        <ZoomInIcon />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </TransformWrapper>
+
+              {/* 左右切图（多图时显示） */}
+              {hasMultiple && (
+                <>
+                  <button
+                    type="button"
+                    onClick={goPrev}
+                    disabled={currentIdx === 0}
+                    aria-label="上一张"
+                    className="absolute left-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-sm backdrop-blur transition-opacity hover:bg-accent disabled:opacity-30"
+                  >
+                    <ChevronLeft className="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    disabled={currentIdx >= imageUrls.length - 1}
+                    aria-label="下一张"
+                    className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-sm backdrop-blur transition-opacity hover:bg-accent disabled:opacity-30"
+                  >
+                    <ChevronRight className="size-5" />
+                  </button>
+
+                  {/* 计数 */}
+                  <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-border bg-card/90 px-2.5 py-0.5 text-xs tabular-nums text-muted-foreground shadow-sm backdrop-blur">
+                    {currentIdx + 1} / {imageUrls.length}
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <div className="flex h-64 w-full items-center justify-center p-6 text-center md:h-[70vh]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={fileSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
-                alt={`${pattern.name} 纸样预览`}
-                className="max-h-full max-w-full object-contain opacity-90"
-                onError={imgOnError}
-              />
+              <p className="text-sm text-muted-foreground">该纸样暂无图片</p>
+            </div>
+          )}
+
+          {/* 缩略图条（多图时显示） */}
+          {hasMultiple && (
+            <div className="absolute bottom-16 left-1/2 hidden -translate-x-1/2 gap-1.5 rounded-lg border border-border bg-card/90 p-1.5 shadow-sm backdrop-blur sm:flex">
+              {imageUrls.map((url, i) => (
+                <button
+                  key={url + i}
+                  type="button"
+                  onClick={() => setCurrentIdx(i)}
+                  aria-label={`切换到第 ${i + 1} 张`}
+                  className={cn(
+                    "size-10 overflow-hidden rounded-md border-2 transition-all",
+                    i === currentIdx
+                      ? "border-primary"
+                      : "border-transparent opacity-70 hover:opacity-100",
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={fileSrc(url) || "/placeholder.svg"}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -199,16 +219,33 @@ export function PatternModal({
             </button>
           </div>
 
-          {/* 纸样缩略图 */}
-          <div className="overflow-hidden rounded-lg border border-border bg-muted">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={fileSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
-              alt={`${pattern.name} 纸样预览`}
-              className="aspect-[4/3] w-full object-cover"
-              onError={imgOnError}
-            />
-          </div>
+          {/* 缩略图列表（始终显示，方便快速跳图） */}
+          {imageUrls.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {imageUrls.map((url, i) => (
+                <button
+                  key={url + i}
+                  type="button"
+                  onClick={() => setCurrentIdx(i)}
+                  aria-label={`查看第 ${i + 1} 张图`}
+                  className={cn(
+                    "size-12 overflow-hidden rounded-md border-2 transition-all",
+                    i === currentIdx
+                      ? "border-primary"
+                      : "border-border opacity-70 hover:opacity-100",
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={fileSrc(url) || "/placeholder.svg"}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={imgOnError}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-1.5">
             {pattern.categories.map((cat) => (
@@ -223,9 +260,7 @@ export function PatternModal({
           )}
 
           <p className="mt-auto text-xs leading-relaxed text-muted-foreground">
-            {pattern.sizeChartUrl
-              ? "提示：滚轮缩放，双击放大 / 还原，放大后可拖拽查看尺码表细节。"
-              : "该纸样暂未上传尺码表图片。"}
+            提示：滚轮或双指缩放查看图片细节，多张图片可点击下方缩略图或左右切换。
           </p>
 
           <button
@@ -241,5 +276,26 @@ export function PatternModal({
         </div>
       </div>
     </div>
+  )
+}
+
+/* ---- 内联 SVG 图标，避免引入 lucide 的 Plus/Minus/RotateCcw 占据多行 --- */
+function ZoomOutIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  )
+}
+function ZoomInIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
   )
 }

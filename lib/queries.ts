@@ -23,7 +23,7 @@ function toSignedUrl(key: string | null): string {
 // 避免 unstable_cache 缓存住 1 小时后过期的签名导致破图。
 //
 // 写入路径：createPattern/createPatternsBatch/updatePattern/deletePattern
-//   调用 revalidateTag("patterns")，Next.js 会把标记为该 tag 的所有缓存标记失效，
+//   调用 updateTag("patterns")，Next.js 会把标记为该 tag 的所有缓存标记失效，
 //   下次读取会重新走 DB；不在原 unstable_cache 里读取，避免 30s 内还命中旧数据。
 const getAllPatternsRawCached = unstable_cache(
     async () => {
@@ -34,8 +34,8 @@ const getAllPatternsRawCached = unstable_cache(
                 name: r.name,
                 studio: r.studio,
                 categories: r.categories ?? [],
-                thumbnailKey: r.thumbnailUrl,
-                sizeChartKey: r.sizeChartUrl ?? null,
+                // 兜底：极少数情况下 images 为空数组时保持空
+                imageKeys: r.images ?? [],
                 fileKey: r.fileUrl ?? null,
                 fileName: r.fileName ?? null,
                 note: r.note,
@@ -48,17 +48,20 @@ const getAllPatternsRawCached = unstable_cache(
 
 export async function getAllPatterns(): Promise<GalleryPattern[]> {
     const rows = await getAllPatternsRawCached()
-    return rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        studio: r.studio,
-        categories: r.categories ?? [],
-        thumbnailUrl: toSignedUrl(r.thumbnailKey),
-        sizeChartUrl: r.sizeChartKey ? toSignedUrl(r.sizeChartKey) : null,
-        fileUrl: r.fileKey ? toSignedUrl(r.fileKey) : null,
-        fileName: r.fileName,
-        note: r.note,
-    }))
+    return rows.map((r) => {
+        const imageUrls = r.imageKeys.map((k) => toSignedUrl(k)).filter(Boolean)
+        return {
+            id: r.id,
+            name: r.name,
+            studio: r.studio,
+            categories: r.categories,
+            imageUrls,
+            thumbnailUrl: imageUrls[0] ?? "",
+            fileUrl: r.fileKey ? toSignedUrl(r.fileKey) : null,
+            fileName: r.fileName,
+            note: r.note,
+        }
+    })
 }
 
 const getAllTagsCached = unstable_cache(

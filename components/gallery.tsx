@@ -55,7 +55,7 @@ export function Gallery({
 
   // 管理相关状态
   const [editorOpen, setEditorOpen] = useState(false)
-  const [editing, setEditing] = useState<GalleryPattern | null>(null)
+  const [editing, setEditing] = useState<EditablePattern | null>(null)
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [batchOpen, setBatchOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GalleryPattern | null>(null)
@@ -150,7 +150,16 @@ export function Gallery({
   }
 
   function openEdit(p: GalleryPattern) {
-    setEditing(p)
+    setEditing({
+      id: p.id,
+      name: p.name,
+      studio: p.studio,
+      categories: p.categories,
+      images: p.imageUrls,
+      fileUrl: p.fileUrl,
+      fileName: p.fileName,
+      note: p.note,
+    })
     setEditorOpen(true)
   }
 
@@ -184,8 +193,8 @@ export function Gallery({
         name: input.name,
         studio: input.studio,
         categories: input.categories ?? [],
-        thumbnailUrl: input.thumbnailUrl,
-        sizeChartUrl: input.sizeChartUrl ?? null,
+        imageUrls: input.images,
+        thumbnailUrl: input.images[0] ?? "",
         fileUrl: input.fileUrl ?? null,
         fileName: input.fileName ?? null,
         note: input.note ?? null,
@@ -198,8 +207,8 @@ export function Gallery({
         name: input.name,
         studio: input.studio,
         categories: input.categories ?? [],
-        thumbnailUrl: input.thumbnailUrl,
-        sizeChartUrl: input.sizeChartUrl ?? null,
+        imageUrls: input.images,
+        thumbnailUrl: input.images[0] ?? "",
         fileUrl: input.fileUrl ?? null,
         fileName: input.fileName ?? null,
         note: input.note ?? null,
@@ -218,12 +227,18 @@ export function Gallery({
         try {
           const result = await action
           if (!result || typeof result !== "object" || !("id" in result)) return
-          const { id: newId, thumbnailUrl, sizeChartUrl, fileUrl } = result
+          const { id: newId, imageUrls, thumbnailUrl, fileUrl } = result
           if (!newId) return
           setPatterns((prev) =>
             prev.map((p) =>
               p.id === tempId
-                ? { ...p, id: newId, thumbnailUrl: thumbnailUrl ?? p.thumbnailUrl, sizeChartUrl: sizeChartUrl ?? p.sizeChartUrl, fileUrl: fileUrl ?? p.fileUrl }
+                ? {
+                    ...p,
+                    id: newId,
+                    imageUrls: imageUrls ?? p.imageUrls,
+                    thumbnailUrl: thumbnailUrl ?? p.thumbnailUrl,
+                    fileUrl: fileUrl ?? p.fileUrl,
+                  }
                 : p,
             ),
           )
@@ -248,8 +263,8 @@ export function Gallery({
       name: it.name,
       studio: it.studio,
       categories: it.categories ?? [],
-      thumbnailUrl: it.thumbnailUrl,
-      sizeChartUrl: it.sizeChartUrl ?? null,
+      imageUrls: it.images,
+      thumbnailUrl: it.images[0] ?? "",
       fileUrl: it.fileUrl ?? null,
       fileName: it.fileName ?? null,
       note: it.note ?? null,
