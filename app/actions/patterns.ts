@@ -1,7 +1,7 @@
 "use server"
 
 import { eq } from "drizzle-orm"
-import { revalidatePath, revalidateTag } from "next/cache"
+import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
@@ -59,8 +59,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
         `,
     )
 
-    revalidateTag("patterns")
-    revalidatePath("/")
+    updateTag("patterns")
     return {
         id: (rows as Array<{ id: number }>)[0]?.id ?? null,
         thumbnailUrl: toSignedUrl(input.thumbnailUrl),
@@ -95,8 +94,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
         insertedIds.push((rows as Array<{ id: number }>)[0]?.id)
     }
 
-    revalidateTag("patterns")
-    revalidatePath("/")
+    updateTag("patterns")
     return insertedIds.length
 }
 
@@ -122,8 +120,7 @@ export async function updatePattern(id: number, input: PatternInput) {
         `,
     )
 
-    revalidateTag("patterns")
-    revalidatePath("/")
+    updateTag("patterns")
 }
 
 export async function deletePattern(id: number) {
@@ -145,6 +142,5 @@ export async function deletePattern(id: number) {
             ).catch(() => {})
         })
     }
-    revalidateTag("patterns")
-    revalidatePath("/")
+    updateTag("patterns")
 }
