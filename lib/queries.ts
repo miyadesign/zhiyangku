@@ -3,7 +3,6 @@ import { asc, desc } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { queryDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
-import { signUrl } from "@/lib/oss"
 import type { TagInfo } from "@/lib/constants"
 import type { GalleryPattern } from "@/lib/gallery-types"
 
@@ -13,10 +12,20 @@ import type { GalleryPattern } from "@/lib/gallery-types"
  * 前端拿到 https://...oss-ap-southeast-1...aliyuncs.com/...?Signature=xxx，
  * 浏览器直接走 CDN 并发拉取，不需要再请求我们的 Next.js 路由中转。
  */
-function toSignedUrl(key: string | null): string {
+function toAccessibleUrl(key: string | null): string {
     if (!key) return ""
-    if (/^https?:\/\//i.test(key)) return key
-    return signUrl(key)
+    // Cloudinary 等历史外链继续直连；OSS 图片和文件经本站读取，
+    // 这样每次请求都会重新签名，不会因页面或浏览器缓存着过期的一小时 URL 而破图。
+    if (/^https?:\/\//i.test(key)) {
+        try {
+            const url = new URL(key)
+            if (!url.hostname.endsWith(".aliyuncs.com")) return key
+            key = decodeURIComponent(url.pathname.replace(/^\//, ""))
+        } catch {
+            return key
+        }
+    }
+    return `/api/file?key=${encodeURIComponent(key)}`
 }
 
 // 仅缓存数据库原始行（OSS key）。签名 URL 每次重新生成，
@@ -49,15 +58,15 @@ const getAllPatternsRawCached = unstable_cache(
 export async function getAllPatterns(): Promise<GalleryPattern[]> {
     const rows = await getAllPatternsRawCached()
     return rows.map((r) => {
-        const imageUrls = r.imageKeys.map((k) => toSignedUrl(k)).filter(Boolean)
+        const imageUrls = r.imageKeys.map((k) => toAccessibleUrl(k)).filter(Boolean)
         return {
             id: r.id,
             name: r.name,
             studio: r.studio,
             categories: r.categories,
-            imageUrls,
+        imageUrls,
             thumbnailUrl: imageUrls[0] ?? "",
-            fileUrl: r.fileKey ? toSignedUrl(r.fileKey) : null,
+            fileUrl: r.fileKey ? toAccessibleUrl(r.fileKey) : null,
             fileName: r.fileName,
             note: r.note,
         }

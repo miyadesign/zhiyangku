@@ -15,28 +15,37 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "缺少 key" }, { status: 400 })
         }
 
-        // 完整 URL 直接重定向（兼容历史 Cloudinary URL 或已是签名 URL 的情况）
+        // 完整 URL 直接重定向（兼容历史 Cloudinary URL）。OSS URL 提取 key 后重新签名。
         if (/^https?:\/\//i.test(key)) {
-            return NextResponse.redirect(key)
+            const url = new URL(key)
+            if (!url.hostname.endsWith(".aliyuncs.com")) return NextResponse.redirect(key)
+            const objectKey = decodeURIComponent(url.pathname.replace(/^\//, ""))
+            const target = new URL("/api/file", request.url)
+            target.searchParams.set("key", objectKey)
+            if (wantDownload) {
+                target.searchParams.set("download", "1")
+                const filename = request.nextUrl.searchParams.get("filename")
+                if (filename) target.searchParams.set("filename", filename)
+            }
+            return NextResponse.redirect(target)
         }
 
         const signed = signUrl(key)
-        if (wantDownload) {
-            // 下载模式：用 fetch 中转加 Content-Disposition，避免 OSS 直链无法自定义文件名
-            const upstream = await fetch(signed, { cache: "no-store" })
-            if (!upstream.ok) {
-                return NextResponse.json({ error: `OSS 返回 ${upstream.status}` }, { status: upstream.status })
-            }
+        // 同源中转 OSS 内容：Wi-Fi 网络无需直接访问 OSS 域名，且签名每次请求都会刷新。
+        const upstream = await fetch(signed, { cache: "no-store" })
+        if (!upstream.ok) {
+            return NextResponse.json({ error: `OSS 返回 ${upstream.status}` }, { status: upstream.status })
+        }
+        {
             const filename = request.nextUrl.searchParams.get("filename") || key.split("/").pop() || "download"
-            const encoded = encodeURIComponent(filename)
             const headers = new Headers()
             headers.set("Content-Type", upstream.headers.get("content-type") || "application/octet-stream")
-            headers.set("Content-Disposition", `attachment; filename*=UTF-8''${encoded}`)
-            headers.set("Cache-Control", "public, max-age=3600")
+            headers.set("Cache-Control", "private, max-age=300, stale-while-revalidate=3600")
+            if (wantDownload) {
+                headers.set("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)
+            }
             return new NextResponse(upstream.body, { status: 200, headers })
         }
-
-        return NextResponse.redirect(signed)
     } catch (error) {
         console.error("[file] error:", error)
         return NextResponse.json({ error: "读取文件失败" }, { status: 500 })

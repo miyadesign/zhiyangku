@@ -20,6 +20,7 @@ export type GalleryPattern = {
  */
 export function fileSrc(pathname: string): string {
     if (!pathname) return ""
+    if (pathname.startsWith("/")) return pathname
     if (pathname.startsWith("http://") || pathname.startsWith("https://")) {
         return pathname
     }
@@ -28,6 +29,12 @@ export function fileSrc(pathname: string): string {
 
 /** 电子版纸样文件下载 URL（带 Content-Disposition 附件名） */
 export function downloadSrc(pathname: string, filename?: string | null): string {
+    if (pathname.startsWith("/")) {
+        const url = new URL(pathname, "http://localhost")
+        url.searchParams.set("download", "1")
+        if (filename) url.searchParams.set("filename", filename)
+        return `${url.pathname}${url.search}`
+    }
     if (pathname && (pathname.startsWith("http://") || pathname.startsWith("https://"))) {
         return pathname
     }

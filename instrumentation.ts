@@ -152,18 +152,26 @@ async function directFetch(
 export async function register() {
     if (process.env.NEXT_RUNTIME !== "nodejs") return
 
-    delete process.env.HTTP_PROXY
-    delete process.env.HTTPS_PROXY
-    delete process.env.http_proxy
-    delete process.env.https_proxy
-    delete process.env.ALL_PROXY
-    delete process.env.all_proxy
-    delete process.env.NO_PROXY
-    delete process.env.no_proxy
-
     ;(
         globalThis as unknown as { __NEON_DIRECT_FETCH__: typeof fetch }
-    ).__NEON_DIRECT_FETCH__ = directFetch as unknown as typeof fetch
+    ).__NEON_DIRECT_FETCH__ = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        // 优先直连以避开某些代理对 Neon 请求的拦截；直连失败时回退到运行时 fetch，
+        // 保留 HTTPS_PROXY/系统网络配置，让受限 Wi-Fi 下也能通过已配置的代理出网。
+        try {
+            const response = await directFetch(String(input), init)
+            if (response.status < 500 && response.status !== 403) return response
+        } catch (directError) {
+            try {
+                return await globalThis.fetch(input, init)
+            } catch (fallbackError) {
+                throw new AggregateError(
+                    [directError, fallbackError],
+                    "Neon 请求直连和运行时网络均失败",
+                )
+            }
+        }
+        return globalThis.fetch(input, init)
+    }) as typeof fetch
 
     // OSS 连接池预热：进程起来就付 1 次 SSL 握手成本，让首次上传 0 等待
     // 异步执行，不阻塞 register() 返回
