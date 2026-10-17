@@ -26,8 +26,6 @@ import crypto from "crypto"
 const rawRegion = process.env.ALI_OSS_REGION || "ap-southeast-1"
 const region = rawRegion.replace(/^oss-/, "")
 const bucket = process.env.ALI_OSS_BUCKET || "zhiyangku"
-const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
-const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
 
 // 签名 URL 默认有效期（秒）。前端列表/详情只读图片，1 小时足够；超过会自动重新签名
 export const SIGN_EXPIRES_SEC = Number(process.env.ALI_OSS_SIGN_EXPIRES || 3600)
@@ -48,20 +46,41 @@ const keepAliveAgentOpts: any = {
 const keepAliveHttpAgent = new HttpAgent(keepAliveAgentOpts)
 const keepAliveHttpsAgent = new HttpsAgent(keepAliveAgentOpts)
 
-/** 单例 OSS 客户端（v1 签名 + region 默认 endpoint + 长 keep-alive） */
-export const oss = new OSS({
+/** 延迟创建客户端：构建阶段会导入 API route，但不应该因此要求部署密钥。 */
+let ossClient: OSS | null = null
+
+function getOssClient(): OSS {
+    if (ossClient) return ossClient
+
+    const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
+    const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
+    if (!accessKeyId || !accessKeySecret) {
+        throw new Error("OSS 运行时缺少 ALI_OSS_ACCESS_KEY_ID 或 ALI_OSS_ACCESS_KEY_SECRET")
+    }
+
     // 显式指定 endpoint，避免 region "ap-southeast-1" + SDK 自动拼接导致域名错误
-    endpoint: `https://oss-${region}.aliyuncs.com`,
-    region,
-    bucket,
-    accessKeyId,
-    accessKeySecret,
-    secure: true,
-    // 允许更长的连接超时（跨洲场景下 SSL 握手可能较慢）
-    timeout: 60 * 1000,
-    // ali-oss 的类型签名里 Options 没 agent/httpsAgent 字段，但运行时支持
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ...({ agent: keepAliveHttpAgent, httpsAgent: keepAliveHttpsAgent } as any),
+    ossClient = new OSS({
+        endpoint: `https://oss-${region}.aliyuncs.com`,
+        region,
+        bucket,
+        accessKeyId,
+        accessKeySecret,
+        secure: true,
+        timeout: 60 * 1000,
+        // ali-oss 的类型签名里 Options 没 agent/httpsAgent 字段，但运行时支持
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...({ agent: keepAliveHttpAgent, httpsAgent: keepAliveHttpsAgent } as any),
+    })
+    return ossClient
+}
+
+/** 保持现有 oss.method() 调用方式，同时把凭据读取推迟到真正调用时。 */
+export const oss = new Proxy({} as OSS, {
+    get(_target, property) {
+        const client = getOssClient()
+        const value = Reflect.get(client, property, client) as unknown
+        return typeof value === "function" ? value.bind(client) : value
+    },
 })
 
 /**
@@ -170,6 +189,12 @@ export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): str
  */
 export function signPutUrl(key: string, expiresSec = 300, contentType = ""): string {
     if (!key) return ""
+
+    const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
+    const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
+    if (!accessKeyId || !accessKeySecret) {
+        throw new Error("OSS 运行时缺少 ALI_OSS_ACCESS_KEY_ID 或 ALI_OSS_ACCESS_KEY_SECRET")
+    }
 
     const objectKey = key // 已是 "patterns/images/xxx.jpg" 格式
     const expiration = Math.floor(Date.now() / 1000) + expiresSec
