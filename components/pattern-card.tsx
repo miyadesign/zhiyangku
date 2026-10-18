@@ -61,8 +61,8 @@ export function PatternCard({
           className="block w-full cursor-zoom-in text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`查看 ${pattern.name} 高清纸样`}
         >
-          {/* 移动端 aspect-square（更高），PC 端 aspect-[4/3] */}
-          <div className="relative aspect-square overflow-hidden bg-muted md:aspect-[4/3]">
+          {/* 移动端保持正方形，PC 端使用稍高的 5:4 比例。 */}
+          <div className="relative aspect-square overflow-hidden bg-muted md:aspect-[5/4]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={thumbnailSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
@@ -105,7 +105,7 @@ export function PatternCard({
 
       <div className="flex flex-1 flex-col gap-2.5 p-3.5">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="min-w-0 flex-1 text-pretty text-sm font-medium leading-snug text-card-foreground">
+          <h3 className="min-w-0 flex-1 text-pretty text-xs font-medium leading-snug text-card-foreground md:text-sm">
             {pattern.name}
           </h3>
           {onToggleFavorite && (
