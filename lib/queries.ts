@@ -14,18 +14,33 @@ import type { GalleryPattern } from "@/lib/gallery-types"
  */
 function toAccessibleUrl(key: string | null): string {
     if (!key) return ""
-    // Cloudinary 等历史外链继续直连；OSS 图片和文件经本站读取，
-    // 这样每次请求都会重新签名，不会因页面或浏览器缓存着过期的一小时 URL 而破图。
-    if (/^https?:\/\//i.test(key)) {
+    let normalizedKey: string = key
+    // 修复此前编辑保存时误写进数据库的代理地址；同时让已有受影响纸样
+    // 在下一次读取时即可恢复显示，无需用户再次编辑并保存。
+    for (let depth = 0; depth < 10; depth += 1) {
         try {
-            const url = new URL(key)
-            if (!url.hostname.endsWith(".aliyuncs.com")) return key
-            key = decodeURIComponent(url.pathname.replace(/^\//, ""))
+            const url = new URL(normalizedKey, "https://local.invalid")
+            if (url.pathname !== "/api/file") break
+            const originalKey = url.searchParams.get("key")
+            if (!originalKey) break
+            normalizedKey = originalKey
         } catch {
-            return key
+            // 原始 OSS key 不是 URL，继续走下面的代理逻辑。
+            break
         }
     }
-    return `/api/file?key=${encodeURIComponent(key)}`
+    // Cloudinary 等历史外链继续直连；OSS 图片和文件经本站读取，
+    // 这样每次请求都会重新签名，不会因页面或浏览器缓存着过期的一小时 URL 而破图。
+    if (/^https?:\/\//i.test(normalizedKey)) {
+        try {
+            const url = new URL(normalizedKey)
+            if (!url.hostname.endsWith(".aliyuncs.com")) return normalizedKey
+            normalizedKey = decodeURIComponent(url.pathname.replace(/^\//, ""))
+        } catch {
+            return normalizedKey
+        }
+    }
+    return `/api/file?key=${encodeURIComponent(normalizedKey)}`
 }
 
 // 仅缓存数据库原始行（OSS key）。签名 URL 每次重新生成，

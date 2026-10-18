@@ -14,9 +14,74 @@ function toSignedUrl(key: string | null): string {
     return signUrl(key)
 }
 
-/** 过滤掉空字符串/null，保证存进 DB 的数组干净 */
+/**
+ * 编辑器读取图片时使用同源代理地址（/api/file?key=...），但数据库只应
+ * 保存 OSS object key。把代理 URL 还原成 key，避免一次编辑把纸样其余图片
+ * 的数据库记录改成代理 URL，导致代理再把整段 URL 当作 OSS 文件名查询。
+ */
+function normalizeImageKey(value: string): string {
+    const trimmed = value.trim()
+    if (!trimmed) return ""
+
+    // 多次编辑过的旧记录可能出现代理地址嵌套，逐层解开。
+    let key = trimmed
+    for (let depth = 0; depth < 10; depth += 1) {
+        try {
+            // 支持相对地址，也兼容部署域名下的绝对 /api/file 地址。
+            const url = new URL(key, "https://local.invalid")
+            if (url.pathname !== "/api/file") break
+            const originalKey = url.searchParams.get("key")
+            if (!originalKey) break
+            key = originalKey.trim()
+        } catch {
+            // 非 URL 格式作为原始 OSS key 继续处理。
+            break
+        }
+    }
+
+    return key
+}
+
+/** 过滤空值，并确保数据库中存的是原始图片 key，而不是代理地址。 */
 function cleanImageKeys(input: string[]): string[] {
-    return input.filter((k): k is string => typeof k === "string" && k.trim() !== "")
+    return input
+        .filter((k): k is string => typeof k === "string")
+        .map(normalizeImageKey)
+        .filter(Boolean)
+}
+
+/** 删除已从纸样移除、且没有被其他纸样继续引用的 OSS 对象。 */
+async function deleteUnreferencedOssKeys(keys: string[]) {
+    const candidates = [...new Set(keys.map(normalizeImageKey).filter(Boolean))]
+        .filter((key) => !/^https?:\/\//i.test(key))
+    if (candidates.length === 0) return
+
+    let rows: { images: string[]; fileUrl: string | null }[]
+    try {
+        rows = await queryDb((db) =>
+            db.select({ images: patterns.images, fileUrl: patterns.fileUrl }).from(patterns),
+        )
+    } catch (error) {
+        console.error("[patterns] Could not verify OSS image references; skipping deletion", error)
+        return
+    }
+    const referenced = new Set<string>()
+    for (const row of rows) {
+        for (const key of row.images ?? []) {
+            const normalized = normalizeImageKey(key)
+            if (normalized) referenced.add(normalized)
+        }
+        if (row.fileUrl) {
+            const normalized = normalizeImageKey(row.fileUrl)
+            if (normalized) referenced.add(normalized)
+        }
+    }
+
+    await Promise.all(
+        candidates
+            .filter((key) => !referenced.has(key))
+            .map((key) => deleteFromOss(key)),
+    )
 }
 
 export type PatternInput = {
@@ -146,6 +211,10 @@ export async function updatePattern(id: number, input: PatternInput) {
     const imageKeys = cleanImageKeys(input.images)
     if (imageKeys.length === 0) throw new Error("请上传纸样图片")
     const primaryKey = imageKeys[0]!
+    const previous = await queryDb(async (db) => {
+        const [row] = await db.select({ images: patterns.images }).from(patterns).where(eq(patterns.id, id))
+        return row
+    })
 
     await queryWithRetry(() =>
         sqlDb`
@@ -163,6 +232,12 @@ export async function updatePattern(id: number, input: PatternInput) {
         `,
     )
 
+    const retainedKeys = new Set(imageKeys)
+    const removedKeys = (previous?.images ?? [])
+        .map(normalizeImageKey)
+        .filter((key) => key && !retainedKeys.has(key))
+    await deleteUnreferencedOssKeys(removedKeys)
+
     updateTag("patterns")
 }
 
@@ -172,21 +247,13 @@ export async function deletePattern(id: number) {
         return r
     })
     if (row) {
-        // 先删 DB，立刻响应客户端；OSS 清理后台异步进行
+        // 先删 DB，再检查剩余纸样是否仍引用这些 OSS 对象。
         await queryDb((db) => db.delete(patterns).where(eq(patterns.id, id)))
-        // 后台清理 OSS 资源（不阻塞删除请求）
         const keys = [
             ...(row.images ?? []),
             row.fileUrl ?? null,
         ].filter(Boolean) as string[]
-        queueMicrotask(() => {
-            Promise.all(
-                keys.map((key) => {
-                    if (/^https?:\/\//i.test(key)) return Promise.resolve()
-                    return deleteFromOss(key)
-                }),
-            ).catch(() => {})
-        })
+        await deleteUnreferencedOssKeys(keys)
     }
     updateTag("patterns")
 }

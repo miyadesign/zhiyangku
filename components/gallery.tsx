@@ -415,7 +415,7 @@ export function Gallery({
                   onClick={() => toggleCategory(tag.name)}
                   aria-pressed={selected}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs font-medium transition-all",
                     selected
                       ? cn(c.bg, c.text, "border-transparent ring-1 ring-inset ring-black/5")
                       : "border-border bg-card text-muted-foreground hover:border-ring hover:text-foreground",
