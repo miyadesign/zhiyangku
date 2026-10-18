@@ -301,5 +301,6 @@ export async function deletePattern(id: number) {
         ].filter(Boolean) as string[]
         scheduleUnreferencedOssCleanup(keys)
     }
-    updateTag("patterns")
+    // Gallery 已先在当前设备乐观移除该条记录；此处不立即重验证整个 RSC 页面，
+    // 避免删除一条纸样时触发整页数据刷新。其他设备通过 15 秒轮询读取更新。
 }
