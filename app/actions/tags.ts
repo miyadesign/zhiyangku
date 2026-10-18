@@ -1,7 +1,7 @@
 "use server"
 
 import { and, eq, ne, sql } from "drizzle-orm"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, updateTag as invalidateTag } from "next/cache"
 import { queryDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
 
@@ -26,6 +26,7 @@ export async function createTag(name: string, color: string) {
   })
 
   revalidatePath("/")
+  invalidateTag("tags")
 }
 
 export async function updateTag(
@@ -63,6 +64,8 @@ export async function updateTag(
   })
 
   revalidatePath("/")
+  invalidateTag("tags")
+  invalidateTag("patterns")
 }
 
 export async function deleteTag(id: number) {
@@ -82,4 +85,6 @@ export async function deleteTag(id: number) {
   })
 
   revalidatePath("/")
+  invalidateTag("tags")
+  invalidateTag("patterns")
 }

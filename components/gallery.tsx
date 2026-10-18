@@ -40,6 +40,7 @@ export function Gallery({
   patterns: GalleryPattern[]
   tags: AdminTag[]
 }) {
+  const router = useRouter()
   const [studio, setStudio] = useState<string>("all")
   const [categories, setCategories] = useState<string[]>([])
   const [query, setQuery] = useState("")

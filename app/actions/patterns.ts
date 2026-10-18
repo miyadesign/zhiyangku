@@ -1,9 +1,9 @@
 "use server"
 
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
-import { patterns } from "@/lib/db/schema"
+import { patterns, tags } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
 import { getAllPatterns } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
@@ -83,6 +83,35 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
     )
     if (valid.length === 0) throw new Error("没有可导入的有效数据")
 
+    // Excel may contain categories that have not been created in the tag
+    // manager yet. Create them before inserting patterns so the filters and
+    // badges can resolve their colors immediately.
+    const normalizedCategories = new Map<PatternInput, string[]>(
+        valid.map((input): [PatternInput, string[]] => [
+            input,
+            [...new Set((input.categories ?? []).map((name) => name.trim()).filter(Boolean))],
+        ]),
+    )
+    const categoryNames = [...new Set([...normalizedCategories.values()].flat())]
+    if (categoryNames.length > 0) {
+        await queryDb(async (db) => {
+            const [{ maxOrder }] = await db
+                .select({ maxOrder: sql<number>`coalesce(max(${tags.sortOrder}), 0)` })
+                .from(tags)
+            await db
+                .insert(tags)
+                .values(
+                    categoryNames.map((name, index) => ({
+                        name,
+                        color: "slate",
+                        sortOrder: (maxOrder ?? 0) + index + 1,
+                    })),
+                )
+                .onConflictDoNothing({ target: tags.name })
+        })
+        updateTag("tags")
+    }
+
     const insertedIds: number[] = []
     for (const input of valid) {
         const imageKeys = cleanImageKeys(input.images)
@@ -93,7 +122,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
                 VALUES (
                     ${input.name.trim()},
                     ${input.studio.trim()},
-                    ${input.categories ?? []}::text[],
+                    ${normalizedCategories.get(input) ?? []}::text[],
                     ${primaryKey},
                     ${imageKeys}::text[],
                     ${input.fileUrl || null},

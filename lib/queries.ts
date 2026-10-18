@@ -52,7 +52,7 @@ const getAllPatternsRawCached = unstable_cache(
         })
     },
     ["patterns-list"],
-    { revalidate: 30, tags: ["patterns"] },
+    { revalidate: 5, tags: ["patterns"] },
 )
 
 export async function getAllPatterns(): Promise<GalleryPattern[]> {
@@ -89,7 +89,7 @@ const getAllTagsCached = unstable_cache(
         })
     },
     ["tags-list"],
-    { revalidate: 60, tags: ["tags"] },
+    { revalidate: 5, tags: ["tags"] },
 )
 
 export type TagRecord = {
