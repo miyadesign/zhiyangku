@@ -165,12 +165,14 @@ export async function uploadToOssDirect(
     const p = (async () => {
         try {
             const fileToUpload = compress ? await compress(file) : file
+            let directError: unknown
             // 直传 OSS 优先（浏览器直连 OSS，跳开 Vercel 中转，没有 4.5MB 限制）
             if (useDirectPut) {
                 try {
                     console.log("[upload] 尝试直传...")
                     return await tryDirectPut(fileToUpload, file.name, folder)
                 } catch (e) {
+                    directError = e
                     console.warn("[upload] 直传失败:", e instanceof Error ? e.message : e)
                 }
             }
@@ -181,9 +183,11 @@ export async function uploadToOssDirect(
                 return await uploadViaProxy(fileToUpload, file.name, folder)
             } catch (e) {
                 console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
+                const message = (reason: unknown) =>
+                    reason instanceof Error ? reason.message : String(reason)
+                const directReason = directError ? `直传：${message(directError)}；` : ""
+                throw new Error(`${directReason}中转：${message(e)}`)
             }
-
-            throw new Error("上传失败：中转和直传都不可用")
         } catch (e) {
             uploadCache.get(file)?.delete(folder)
             throw e
