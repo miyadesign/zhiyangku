@@ -41,15 +41,16 @@ export function PatternCard({
         </button>
 
         {manageable && (
-          <div className="absolute right-2 top-2 flex gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <div className="absolute right-2 top-2 z-10 flex gap-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
             {onEdit && (
               <button
                 type="button"
                 onClick={() => onEdit(pattern)}
                 aria-label={`编辑 ${pattern.name}`}
-                className="inline-flex size-8 items-center justify-center rounded-full border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
               >
-                <Pencil className="size-4" />
+                <Pencil className="size-4 shrink-0" />
+                <span className="text-xs font-medium md:sr-only">编辑</span>
               </button>
             )}
             {onDelete && (
@@ -57,9 +58,10 @@ export function PatternCard({
                 type="button"
                 onClick={() => onDelete(pattern)}
                 aria-label={`删除 ${pattern.name}`}
-                className="inline-flex size-8 items-center justify-center rounded-full border border-border bg-background/90 text-destructive shadow-sm backdrop-blur transition-colors hover:bg-destructive hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
               >
-                <Trash2 className="size-4" />
+                <Trash2 className="size-4 shrink-0" />
+                <span className="text-xs font-medium md:sr-only">删除</span>
               </button>
             )}
           </div>
