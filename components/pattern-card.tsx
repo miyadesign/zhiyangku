@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Pencil, Trash2 } from "lucide-react"
+import { Heart, Pencil, Trash2 } from "lucide-react"
 import { CategoryBadge } from "@/components/category-badge"
 import { thumbnailSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
 
@@ -9,6 +9,8 @@ export function PatternCard({
   pattern,
   tagColors,
   priority = false,
+  favorite = false,
+  onToggleFavorite,
   onOpen,
   onEdit,
   onDelete,
@@ -16,6 +18,8 @@ export function PatternCard({
   pattern: GalleryPattern
   tagColors: Record<string, string>
   priority?: boolean
+  favorite?: boolean
+  onToggleFavorite?: (id: number) => void
   onOpen: (pattern: GalleryPattern) => void
   onEdit?: (pattern: GalleryPattern) => void
   onDelete?: (pattern: GalleryPattern) => void
@@ -71,6 +75,21 @@ export function PatternCard({
             />
           </div>
         </button>
+
+        {onToggleFavorite && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleFavorite(pattern.id)
+            }}
+            aria-label={favorite ? `取消收藏 ${pattern.name}` : `收藏 ${pattern.name}`}
+            aria-pressed={favorite}
+            className="absolute left-2 top-2 z-10 inline-flex size-8 items-center justify-center rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-rose-600"
+          >
+            <Heart className={favorite ? "size-4 fill-rose-500 text-rose-600" : "size-4"} />
+          </button>
+        )}
 
         {manageable && (
           <div className="absolute right-1 top-1 z-10 hidden gap-1 transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">

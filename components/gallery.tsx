@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
+import { Heart, Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -21,6 +21,8 @@ import {
 import { DEFAULT_STUDIOS, type TagInfo, tagColorClasses } from "@/lib/constants"
 import { downloadSrc, type GalleryPattern } from "@/lib/gallery-types"
 import { cn } from "@/lib/utils"
+
+const FAVORITES_STORAGE_KEY = "zhiyangku:favorites:v1"
 
 function downloadPattern(pattern: GalleryPattern) {
   if (!pattern.fileUrl) {
@@ -46,6 +48,39 @@ export function Gallery({
   const [categories, setCategories] = useState<string[]>([])
   const [query, setQuery] = useState("")
   const [active, setActive] = useState<GalleryPattern | null>(null)
+  const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set())
+  const [favoritesLoaded, setFavoritesLoaded] = useState(false)
+
+  // 收藏保存在当前浏览器中；与纸样数据分开，避免需要账号登录才能使用。
+  useEffect(() => {
+    const readFavorites = () => {
+      try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]")
+        const ids = Array.isArray(parsed)
+          ? parsed.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)
+          : []
+        setFavoriteIds(new Set(ids))
+      } catch {
+        setFavoriteIds(new Set())
+      }
+      setFavoritesLoaded(true)
+    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === FAVORITES_STORAGE_KEY || event.key === null) readFavorites()
+    }
+    readFavorites()
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
+  }, [])
+
+  useEffect(() => {
+    if (!favoritesLoaded) return
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([...favoriteIds]))
+    } catch {
+      // 收藏仍可在当前页面使用；仅在浏览器存储不可用时无法跨刷新保留。
+    }
+  }, [favoriteIds, favoritesLoaded])
 
   // 本地可写的纸样列表（乐观更新）。首屏来自服务端数据，新增/编辑/删除时立刻改这里，
   // 后台 fire-and-forget 同步到 server（unstable_cache 命中时刷新几乎无感）。
@@ -112,6 +147,15 @@ export function Gallery({
     )
   }
 
+  const toggleFavorite = (id: number) => {
+    setFavoriteIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   // 动态工作室列表（按出现顺序）
   const studios = useMemo(() => {
     const seen: string[] = []
@@ -129,7 +173,8 @@ export function Gallery({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return patterns.filter((p) => {
-      if (studio !== "all" && p.studio !== studio) return false
+      if (studio === "favorites" && !favoriteIds.has(p.id)) return false
+      if (studio !== "all" && studio !== "favorites" && p.studio !== studio) return false
       if (
         categories.length > 0 &&
         !categories.some((c) => p.categories.includes(c))
@@ -143,13 +188,16 @@ export function Gallery({
       }
       return true
     })
-  }, [patterns, studio, categories, query])
+  }, [patterns, studio, categories, query, favoriteIds])
 
   const studioCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: patterns.length }
+    const counts: Record<string, number> = {
+      all: patterns.length,
+      favorites: patterns.filter((p) => favoriteIds.has(p.id)).length,
+    }
     for (const s of studios) counts[s] = patterns.filter((p) => p.studio === s).length
     return counts
-  }, [patterns, studios])
+  }, [patterns, studios, favoriteIds])
 
   const hasActiveFilters =
     studio !== "all" || categories.length > 0 || query.trim() !== ""
@@ -290,6 +338,7 @@ export function Gallery({
   }
 
   const studioItems: { key: string; label: string }[] = [
+    { key: "favorites", label: "我的收藏" },
     { key: "all", label: "全部纸样" },
     ...studios.map((s) => ({ key: s, label: s })),
   ]
@@ -381,7 +430,10 @@ export function Gallery({
                       : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                   )}
                 >
-                  <span>{item.label}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    {item.key === "favorites" && <Heart className="size-3.5" />}
+                    {item.label}
+                  </span>
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
@@ -437,6 +489,11 @@ export function Gallery({
           </div>
 
           <p className="mb-4 text-sm text-muted-foreground">
+            {studio === "favorites" && (
+              <span className="mr-2 font-serif text-lg font-medium text-foreground">
+                我的收藏
+              </span>
+            )}
             共{" "}
             <span className="font-medium text-foreground">{filtered.length}</span>{" "}
             款纸样
@@ -451,6 +508,8 @@ export function Gallery({
                   pattern={pattern}
                   tagColors={tagColors}
                   priority={index === 0}
+                  favorite={favoriteIds.has(pattern.id)}
+                  onToggleFavorite={toggleFavorite}
                   onOpen={setActive}
                   onEdit={openEdit}
                   onDelete={setDeleteTarget}
@@ -460,10 +519,16 @@ export function Gallery({
           ) : (
             <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-20 text-center">
               <p className="text-sm font-medium text-foreground">
-                {patterns.length === 0 ? "还没有纸样" : "未找到匹配的纸样"}
+                {studio === "favorites" && favoriteIds.size === 0
+                  ? "你还没有收藏纸样"
+                  : patterns.length === 0
+                    ? "还没有纸样"
+                    : "未找到匹配的纸样"}
               </p>
               <p className="text-xs text-muted-foreground">
-                {patterns.length === 0
+                {studio === "favorites" && favoriteIds.size === 0
+                  ? "点击纸样卡片上的心形图标，即可添加到我的收藏"
+                  : patterns.length === 0
                   ? "点击右上角「新增纸样」上传第一个纸样"
                   : "尝试调整工作室、品类或搜索关键词"}
               </p>
