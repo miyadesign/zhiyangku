@@ -22,7 +22,9 @@ export interface UploadResult {
     key: string
 }
 
-const uploadCache = new Map<string, Promise<string>>()
+// Key by File identity, not filename/size/mtime: separate workbook images can
+// share all three metadata fields while containing different bytes.
+const uploadCache = new WeakMap<File, Map<"images" | "files", Promise<string>>>()
 
 /** 生成 OSS key：与 lib/oss.ts 中规则一致，前置到这里让客户端尽早拿到 key */
 function buildKey(filename: string, folder: "images" | "files"): string {
@@ -157,35 +159,40 @@ export async function uploadToOssDirect(
     compress?: (f: File) => Promise<File>,
     useDirectPut = false, // 暂时默认走中转
 ): Promise<string> {
-    const cacheKey = `${folder}:${file.name}:${file.size}:${file.lastModified}`
-    const cached = uploadCache.get(cacheKey)
+    const cached = uploadCache.get(file)?.get(folder)
     if (cached) return cached
 
-    const fileToUpload = compress ? await compress(file) : file
-
     const p = (async () => {
-        // 直传 OSS 优先（浏览器直连 OSS，跳开 Vercel 中转，没有 4.5MB 限制）
-        if (useDirectPut) {
-            try {
-                console.log("[upload] 尝试直传...")
-                return await tryDirectPut(fileToUpload, file.name, folder)
-            } catch (e) {
-                console.warn("[upload] 直传失败:", e instanceof Error ? e.message : e)
-            }
-        }
-
-        // 直传失败才走代理（Vercel Serverless body 限制 4.5MB，大文件会 413）
         try {
-            console.log("[upload] 尝试中转上传...")
-            return await uploadViaProxy(fileToUpload, file.name, folder)
-        } catch (e) {
-            console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
-        }
+            const fileToUpload = compress ? await compress(file) : file
+            // 直传 OSS 优先（浏览器直连 OSS，跳开 Vercel 中转，没有 4.5MB 限制）
+            if (useDirectPut) {
+                try {
+                    console.log("[upload] 尝试直传...")
+                    return await tryDirectPut(fileToUpload, file.name, folder)
+                } catch (e) {
+                    console.warn("[upload] 直传失败:", e instanceof Error ? e.message : e)
+                }
+            }
 
-        throw new Error("上传失败：中转和直传都不可用")
+            // 直传失败才走代理（Vercel Serverless body 限制 4.5MB，大文件会 413）
+            try {
+                console.log("[upload] 尝试中转上传...")
+                return await uploadViaProxy(fileToUpload, file.name, folder)
+            } catch (e) {
+                console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
+            }
+
+            throw new Error("上传失败：中转和直传都不可用")
+        } catch (e) {
+            uploadCache.get(file)?.delete(folder)
+            throw e
+        }
     })()
 
-    uploadCache.set(cacheKey, p)
+    const fileCache = uploadCache.get(file) ?? new Map<"images" | "files", Promise<string>>()
+    fileCache.set(folder, p)
+    uploadCache.set(file, fileCache)
     return p
 }
 

@@ -185,8 +185,9 @@ async function readExcel(file: File) {
       const mediaPath = embedId ? relTargets.get(embedId) : undefined
       const media = mediaPath ? archive[mediaPath] : undefined
       if (!media || !mediaPath) continue
-      const imageName = mediaPath.split("/").pop() ?? `image-${imageIndex + 1}`
-      const extension = imageName.split(".").pop()?.toLowerCase() ?? "png"
+      const mediaName = mediaPath.split("/").pop() ?? `image-${imageIndex + 1}.png`
+      const extension = mediaName.split(".").pop()?.toLowerCase() ?? "png"
+      const imageName = `row-${rowNumber}-image-${imageIndex + 1}.${extension}`
       const mime = extension === "jpg" ? "image/jpeg" : `image/${extension}`
       const images = imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null)
       images[imageIndex] = new File([media], imageName, { type: mime })
@@ -214,8 +215,9 @@ async function readExcel(file: File) {
         const imageIndex = imageColumnToIndex.get(column)
         const media = mediaByImageId.get(id)
         if (imageIndex === undefined || !media) continue
-        const imageName = media.path.split("/").pop() ?? `image-${imageIndex + 1}`
-        const extension = imageName.split(".").pop()?.toLowerCase() ?? "png"
+        const mediaName = media.path.split("/").pop() ?? `image-${imageIndex + 1}.png`
+        const extension = mediaName.split(".").pop()?.toLowerCase() ?? "png"
+        const imageName = `row-${rowNumber}-image-${imageIndex + 1}.${extension}`
         const mime = extension === "jpg" ? "image/jpeg" : `image/${extension}`
         const images = imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null)
         images[imageIndex] = new File([media.data], imageName, { type: mime })
@@ -308,6 +310,7 @@ export function BatchUpload({
     setRows([])
     setWorkbookName(null)
     setFiles(new Map())
+    setImporting(false)
     setProgress({ done: 0, total: 0 })
   }
 
@@ -375,103 +378,97 @@ export function BatchUpload({
     const valid = validatedRows.filter((r) => r.errors.length === 0)
     if (valid.length === 0) return
     setImporting(true)
-    setProgress({ done: 0, total: valid.length })
+    try {
+      type UploadTask = { file: File; folder: "images" | "files" }
+      type RowTask = {
+        row: (typeof valid)[number]
+        imageTaskIds: number[]
+        fileTaskId: number | null
+      }
+      type UploadResult = { key: string } | { error: unknown }
 
-    // 缓存已上传文件，避免同名文件重复上传
-    const uploaded = new Map<string, Promise<string>>()
+      const tasks: UploadTask[] = []
+      const taskIds = new Map<File, Map<UploadTask["folder"], number>>()
+      const addTask = (file: File, folder: UploadTask["folder"]) => {
+        const existing = taskIds.get(file)?.get(folder)
+        if (existing !== undefined) return existing
+        const id = tasks.length
+        tasks.push({ file, folder })
+        const folders = taskIds.get(file) ?? new Map<UploadTask["folder"], number>()
+        folders.set(folder, id)
+        taskIds.set(file, folders)
+        return id
+      }
 
-    // 限流并发：避免一次性跑太多压缩+上传把浏览器卡死
-    // 16 并发：现代浏览器能轻松扛住，对服务端/网络没有压力（每个都是单 PUT）
-    // 跨洲跨境场景下，并发数越高越能填满 TCP 单连接窗口（slow start 之后）
-    const MAX_CONCURRENT = 16
-    const queue = valid.slice()
-    const results: Array<PromiseSettledResult<{
-      r: (typeof valid)[number]
-      images: string[]
-      fileUrl: string | null
-    }>> = new Array(valid.length)
+      const rowTasks: RowTask[] = valid.map((row) => ({
+        row,
+        imageTaskIds: row.imageFiles
+          .filter((file): file is File => file !== null)
+          .map((file) => addTask(file, "images")),
+        fileTaskId: row.fileName ? addTask(files.get(row.fileName)!, "files") : null,
+      }))
+      setProgress({ done: 0, total: tasks.length })
 
-    const uploadOneQueued = async (file: File, folder: "images" | "files"): Promise<string> => {
-      // 同一个文件名复用（同一份 File 可能被多行引用）
-      const cached = uploaded.get(`${folder}:${file.name}`)
-      if (cached) return cached
-      const p = uploadOne(file, folder)
-      uploaded.set(`${folder}:${file.name}`, p)
-      return p
-    }
-
-    async function processRow(idx: number, r: (typeof valid)[number]) {
-      try {
-        // 同一行的 N 个图片 + 电子文件并行上传
-        const [imageKeys, fileUrl] = await Promise.all([
-          Promise.all(
-            r.imageFiles
-              .filter((file): file is File => file !== null)
-              .map((file) => uploadOneQueued(file, "images")),
-          ),
-          r.fileName ? uploadOneQueued(files.get(r.fileName)!, "files") : Promise.resolve(null),
-        ])
-        results[idx] = {
-          status: "fulfilled",
-          value: { r, images: imageKeys, fileUrl },
+      const results: UploadResult[] = new Array(tasks.length)
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < tasks.length) {
+          const taskId = cursor++
+          const task = tasks[taskId]
+          try {
+            results[taskId] = { key: await uploadOne(task.file, task.folder) }
+          } catch (error) {
+            results[taskId] = { error }
+          } finally {
+            setProgress((p) => ({ ...p, done: p.done + 1 }))
+          }
         }
-      } catch (e) {
-        results[idx] = { status: "rejected", reason: e }
-      } finally {
-        setProgress((p) => ({ ...p, done: p.done + 1 }))
       }
-    }
+      // 控制压缩和网络请求总并发，避免大量图片同时处理时浏览器和连接拥塞。
+      await Promise.all(Array.from({ length: Math.min(4, tasks.length) }, () => worker()))
 
-    // 启动 N 个 worker，每个 worker 取一个 row 处理；处理完再取下一个直到 queue 空
-    const worker = async () => {
-      while (queue.length) {
-        const r = queue.shift()!
-        const idx = valid.indexOf(r)
-        await processRow(idx, r)
-      }
-    }
-    const workers = Array.from(
-      { length: Math.min(MAX_CONCURRENT, valid.length) },
-      () => worker(),
-    )
-    await Promise.all(workers)
-
-    // 收集成功项
-    const inputs: PatternInput[] = []
-    const failed: string[] = []
-    for (let i = 0; i < results.length; i++) {
-      const item = results[i]
-      if (item.status === "fulfilled") {
-        const { r, images, fileUrl } = item.value
+      const inputs: PatternInput[] = []
+      const failed: string[] = []
+      for (const { row, imageTaskIds, fileTaskId } of rowTasks) {
+        const imageResults = imageTaskIds.map((id) => results[id])
+        const fileResult = fileTaskId === null ? null : results[fileTaskId]
+        if (
+          imageResults.some((result) => !result || "error" in result) ||
+          (fileResult !== null && (!fileResult || "error" in fileResult))
+        ) {
+          failed.push(row.name)
+          continue
+        }
         inputs.push({
-          name: r.name,
-          studio: r.studio,
-          categories: r.categories,
-          images,
-          fileUrl,
-          fileName: r.fileName || null,
-          note: r.note || null,
+          name: row.name,
+          studio: row.studio,
+          categories: row.categories,
+          images: imageResults.map((result) => (result as { key: string }).key),
+          fileUrl: fileResult ? (fileResult as { key: string }).key : null,
+          fileName: row.fileName || null,
+          note: row.note || null,
         })
-      } else {
-        failed.push(valid[i].name)
       }
-    }
 
-    if (inputs.length === 0) {
-      toast.error("全部上传失败，请检查网络后重试")
-      return
-    }
+      if (inputs.length === 0) {
+        toast.error("全部上传失败，请检查网络后重试")
+        return
+      }
 
-    if (failed.length > 0) {
-      toast.warning(`有 ${failed.length} 个纸样上传失败，已跳过：${failed.join("、")}`)
-    }
+      if (failed.length > 0) {
+        toast.warning(`有 ${failed.length} 个纸样上传失败，已跳过：${failed.join("、")}`)
+      }
 
-    // 乐观更新：立刻关闭弹窗，把数据交给父组件显示
-    toast.success(`成功导入 ${inputs.length} 个纸样`)
-    const items = inputs.slice()
-    reset()
-    onOpenChange(false)
-    onDone(items)
+      toast.success(`成功导入 ${inputs.length} 个纸样`)
+      const items = inputs.slice()
+      reset()
+      onOpenChange(false)
+      onDone(items)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "批量上传失败，请重试")
+    } finally {
+      setImporting(false)
+    }
   }
 
   const hasRows = validatedRows.length > 0
@@ -646,7 +643,7 @@ export function BatchUpload({
           {importing && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              正在导入 {progress.done}/{progress.total}…
+              正在上传文件 {progress.done}/{progress.total}…
             </div>
           )}
         </div>
