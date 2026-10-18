@@ -51,9 +51,10 @@ function cleanImageKeys(input: string[]): string[] {
 }
 
 /** 删除已从纸样移除、且没有被其他纸样继续引用的 OSS 对象。 */
-async function deleteUnreferencedOssKeys(keys: string[]) {
+async function deleteUnreferencedOssKeys(keys: string[], keepKeys: string[] = []) {
+    const keep = new Set(keepKeys.map(normalizeImageKey).filter(Boolean))
     const candidates = [...new Set(keys.map(normalizeImageKey).filter(Boolean))]
-        .filter((key) => !/^https?:\/\//i.test(key))
+        .filter((key) => !keep.has(key) && !/^https?:\/\//i.test(key))
     if (candidates.length === 0) return
 
     let rows: { images: string[]; fileUrl: string | null }[]
@@ -236,7 +237,9 @@ export async function updatePattern(id: number, input: PatternInput) {
     const removedKeys = (previous?.images ?? [])
         .map(normalizeImageKey)
         .filter((key) => key && !retainedKeys.has(key))
-    await deleteUnreferencedOssKeys(removedKeys)
+    // 额外保护本次保存后仍在该纸样图片列表中的 key，避免数据库读取短暂滞后
+    // 或历史地址格式差异导致误删仍在使用的图片。
+    await deleteUnreferencedOssKeys(removedKeys, imageKeys)
 
     updateTag("patterns")
 }
