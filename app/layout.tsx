@@ -1,19 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Noto_Serif_SC } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
-
-const geistSans = Geist({
-  subsets: ['latin'],
-  variable: '--font-sans',
-})
-
-const notoSerif = Noto_Serif_SC({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-serif',
-})
 
 export const metadata: Metadata = {
   title: '纸样库 · 服装纸样收藏图库',
@@ -60,7 +48,7 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className={`light bg-background ${geistSans.variable} ${notoSerif.variable}`}
+      className="light bg-background"
     >
       <body className="font-sans antialiased">
         {children}
