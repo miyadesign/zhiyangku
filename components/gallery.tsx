@@ -479,6 +479,14 @@ export function Gallery({
         tagColors={tagColors}
         onClose={() => setActive(null)}
         onDownload={downloadPattern}
+        onEdit={(pattern) => {
+          setActive(null)
+          openEdit(pattern)
+        }}
+        onDelete={(pattern) => {
+          setActive(null)
+          setDeleteTarget(pattern)
+        }}
       />
 
       {editorOpen && (

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Download, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Pencil, Trash2, X } from "lucide-react"
 import {
   TransformComponent,
   TransformWrapper,
@@ -16,11 +16,15 @@ export function PatternModal({
   tagColors,
   onClose,
   onDownload,
+  onEdit,
+  onDelete,
 }: {
   pattern: GalleryPattern | null
   tagColors: Record<string, string>
   onClose: () => void
   onDownload: (pattern: GalleryPattern) => void
+  onEdit?: (pattern: GalleryPattern) => void
+  onDelete?: (pattern: GalleryPattern) => void
 }) {
   // 当前显示的图片下标
   const [currentIdx, setCurrentIdx] = useState(0)
@@ -288,6 +292,33 @@ export function PatternModal({
             <p className="rounded-lg bg-muted/60 p-3 text-xs leading-relaxed text-foreground">
               {pattern.note}
             </p>
+          )}
+
+          {(onEdit || onDelete) && (
+            <div className="flex gap-2 md:hidden">
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(pattern)}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                  aria-label={`编辑 ${pattern.name}`}
+                >
+                  <Pencil className="size-4" />
+                  编辑
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(pattern)}
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive transition-colors hover:bg-destructive hover:text-white"
+                  aria-label={`删除 ${pattern.name}`}
+                >
+                  <Trash2 className="size-4" />
+                  删除
+                </button>
+              )}
+            </div>
           )}
 
           <p className="mt-auto text-xs leading-relaxed text-muted-foreground">

@@ -45,7 +45,7 @@ export function PatternCard({
         </button>
 
         {manageable && (
-          <div className="absolute right-1 top-1 z-10 flex gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+          <div className="absolute right-1 top-1 z-10 hidden gap-1 transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
             {onEdit && (
               <button
                 type="button"
