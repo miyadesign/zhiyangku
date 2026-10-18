@@ -27,6 +27,34 @@ export function fileSrc(pathname: string): string {
     return `/api/file?key=${encodeURIComponent(pathname)}`
 }
 
+/** 列表卡片使用同源缩略图路由，Cloudflare Workers 会按需生成小图。 */
+export function thumbnailSrc(pathname: string): string {
+    if (!pathname) return ""
+
+    let src = pathname
+    if (/^https?:\/\//i.test(src)) {
+        try {
+            const url = new URL(src)
+            if (!url.hostname.endsWith(".aliyuncs.com")) return src
+            src = decodeURIComponent(url.pathname.replace(/^\//, ""))
+        } catch {
+            return src
+        }
+    }
+
+    if (src.startsWith("/api/file?")) {
+        const url = new URL(src, "http://localhost")
+        url.searchParams.set("preview", "1")
+        return `${url.pathname}${url.search}`
+    }
+
+    if (src.startsWith("patterns/images/")) {
+        return `/api/file?key=${encodeURIComponent(src)}&preview=1`
+    }
+
+    return fileSrc(src)
+}
+
 /** 电子版纸样文件下载 URL（带 Content-Disposition 附件名） */
 export function downloadSrc(pathname: string, filename?: string | null): string {
     if (pathname.startsWith("/")) {

@@ -2,17 +2,19 @@
 
 import { Pencil, Trash2 } from "lucide-react"
 import { CategoryBadge } from "@/components/category-badge"
-import { fileSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
+import { thumbnailSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
 
 export function PatternCard({
   pattern,
   tagColors,
+  priority = false,
   onOpen,
   onEdit,
   onDelete,
 }: {
   pattern: GalleryPattern
   tagColors: Record<string, string>
+  priority?: boolean
   onOpen: (pattern: GalleryPattern) => void
   onEdit?: (pattern: GalleryPattern) => void
   onDelete?: (pattern: GalleryPattern) => void
@@ -31,10 +33,12 @@ export function PatternCard({
           <div className="relative aspect-square overflow-hidden bg-muted md:aspect-[4/3]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={fileSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
+              src={thumbnailSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
               alt={`${pattern.name} 纸样预览`}
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              loading="lazy"
+              loading={priority ? "eager" : "lazy"}
+              fetchPriority={priority ? "high" : "auto"}
+              decoding="async"
               onError={imgOnError}
             />
           </div>

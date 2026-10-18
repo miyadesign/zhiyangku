@@ -431,11 +431,12 @@ export function Gallery({
           {/* 瀑布流 */}
           {filtered.length > 0 ? (
             <div className="grid grid-cols-2 gap-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {filtered.map((pattern) => (
+              {filtered.map((pattern, index) => (
                 <PatternCard
                   key={pattern.id}
                   pattern={pattern}
                   tagColors={tagColors}
+                  priority={index === 0}
                   onOpen={setActive}
                   onEdit={openEdit}
                   onDelete={setDeleteTarget}
