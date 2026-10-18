@@ -269,13 +269,14 @@ export function Gallery({
     }
   }
 
-  // 批量上传完成：本地立即插入全部条目，后台 fire-and-forget 批量写入
-  function handleBatchSaved(items: BatchUploadItem[]) {
-    const now = Date.now()
-    // 同一批里每个 item 用唯一 tempId，方便后续按 id 替换
-    const tempIds: number[] = items.map((_, idx) => -(now + idx))
-    const optimistic: GalleryPattern[] = items.map((it, idx) => ({
-      id: tempIds[idx],
+  // 批量上传完成后先等数据库确认，再把已保存的记录加入列表。
+  async function handleBatchSaved(items: BatchUploadItem[]) {
+    const ids = await createPatternsBatch(items)
+    if (ids.length !== items.length) {
+      throw new Error(`批量保存不完整：${items.length} 条中仅确认 ${ids.length} 条`)
+    }
+    const saved: GalleryPattern[] = items.map((it, idx) => ({
+      id: ids[idx]!,
       name: it.name,
       studio: it.studio,
       categories: it.categories ?? [],
@@ -285,11 +286,7 @@ export function Gallery({
       fileName: it.fileName ?? null,
       note: it.note ?? null,
     }))
-    setPatterns((prev) => [...optimistic, ...prev])
-    // fire-and-forget，后台异步批量写入（当前页面已有乐观数据，无需替换）
-    createPatternsBatch(items).catch((e) => {
-      toast.error(e instanceof Error ? e.message : "批量保存失败")
-    })
+    setPatterns((prev) => [...saved, ...prev])
   }
 
   const studioItems: { key: string; label: string }[] = [

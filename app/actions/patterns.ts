@@ -162,7 +162,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
     } as CreatePatternResult
 }
 
-/** 批量插入同样绕开 Drizzle */
+/** 单条 SQL 原子插入整批纸样，避免逐条写入超时后只保存一部分。 */
 export async function createPatternsBatch(inputs: PatternInput[]) {
     const valid = inputs.filter(
         (i) => i.name?.trim() && i.studio?.trim() && cleanImageKeys(i.images).length > 0,
@@ -198,31 +198,54 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
         updateTag("tags")
     }
 
-    const insertedIds: number[] = []
-    for (const input of valid) {
-        const imageKeys = cleanImageKeys(input.images)
-        const primaryKey = imageKeys[0]!
-        const rows = await queryWithRetry(() =>
-            sqlDb`
+    const payload = valid.map((input) => {
+        const images = cleanImageKeys(input.images)
+        return {
+            name: input.name.trim(),
+            studio: input.studio.trim(),
+            categories: normalizedCategories.get(input) ?? [],
+            thumbnail_url: images[0]!,
+            images,
+            file_url: input.fileUrl || null,
+            file_name: input.fileName?.trim() || null,
+            note: input.note?.trim() || null,
+        }
+    })
+    const inserted = await queryWithRetry(() =>
+        sqlDb`
+            WITH inserted AS (
                 INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, note)
-                VALUES (
-                    ${input.name.trim()},
-                    ${input.studio.trim()},
-                    ${normalizedCategories.get(input) ?? []}::text[],
-                    ${primaryKey},
-                    ${imageKeys}::text[],
-                    ${input.fileUrl || null},
-                    ${input.fileName?.trim() || null},
-                    ${input.note?.trim() || null}
+                SELECT
+                    item.name,
+                    item.studio,
+                    item.categories,
+                    item.thumbnail_url,
+                    item.images,
+                    item.file_url,
+                    item.file_name,
+                    item.note
+                FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb) AS item(
+                    name text,
+                    studio text,
+                    categories text[],
+                    thumbnail_url text,
+                    images text[],
+                    file_url text,
+                    file_name text,
+                    note text
                 )
                 RETURNING id
-            `,
-        )
-        insertedIds.push((rows as Array<{ id: number }>)[0]?.id)
+            )
+            SELECT id FROM inserted ORDER BY id
+        `,
+    )
+    const insertedIds = (inserted as Array<{ id: number }>).map((row) => Number(row.id))
+    if (insertedIds.length !== valid.length) {
+        throw new Error(`批量保存不完整：预期 ${valid.length} 条，实际保存 ${insertedIds.length} 条`)
     }
 
     updateTag("patterns")
-    return insertedIds.length
+    return insertedIds
 }
 
 /** Update 同上 */

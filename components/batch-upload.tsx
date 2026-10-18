@@ -284,11 +284,8 @@ export function BatchUpload({
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
-  /**
-   * 乐观更新：父组件负责写 server + 更新本地列表。
-   * 这里在文件全部上传完后立刻关闭弹窗、回传数据，不再 await 远程批量写入。
-   */
-  onDone: (items: BatchUploadItem[]) => void
+  /** 文件上传完成后，等待父组件确认数据库批量写入成功。 */
+  onDone: (items: BatchUploadItem[]) => Promise<void>
 }) {
   const workbookInputRef = useRef<HTMLInputElement>(null)
   const filesInputRef = useRef<HTMLInputElement>(null)
@@ -297,6 +294,7 @@ export function BatchUpload({
   const [workbookName, setWorkbookName] = useState<string | null>(null)
   const [files, setFiles] = useState<Map<string, File>>(new Map())
   const [importing, setImporting] = useState(false)
+  const [savingRecords, setSavingRecords] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
 
   // 打开弹窗时立刻预热两种 folder 的签名，消除首次上传延迟
@@ -311,6 +309,7 @@ export function BatchUpload({
     setWorkbookName(null)
     setFiles(new Map())
     setImporting(false)
+    setSavingRecords(false)
     setProgress({ done: 0, total: 0 })
   }
 
@@ -378,6 +377,7 @@ export function BatchUpload({
     const valid = validatedRows.filter((r) => r.errors.length === 0)
     if (valid.length === 0) return
     setImporting(true)
+    setSavingRecords(false)
     try {
       type UploadTask = { file: File; folder: "images" | "files" }
       type RowTask = {
@@ -459,11 +459,12 @@ export function BatchUpload({
         toast.warning(`有 ${failed.length} 个纸样上传失败，已跳过：${failed.join("、")}`)
       }
 
-      toast.success(`成功导入 ${inputs.length} 个纸样`)
       const items = inputs.slice()
+      setSavingRecords(true)
+      await onDone(items)
+      toast.success(`成功导入 ${items.length} 个纸样`)
       reset()
       onOpenChange(false)
-      onDone(items)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "批量上传失败，请重试")
     } finally {
@@ -643,7 +644,9 @@ export function BatchUpload({
           {importing && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              正在上传文件 {progress.done}/{progress.total}…
+              {savingRecords
+                ? "正在保存纸样信息…"
+                : `正在上传文件 ${progress.done}/${progress.total}…`}
             </div>
           )}
         </div>
