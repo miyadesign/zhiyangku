@@ -2,7 +2,8 @@ import "server-only"
 import { Agent as HttpAgent } from "http"
 import { Agent as HttpsAgent } from "https"
 import OSS from "ali-oss"
-import crypto from "crypto"
+import { OSS_BUCKET as bucket, OSS_REGION as region } from "@/lib/oss-sign"
+export { signPutUrl } from "@/lib/oss-sign"
 
 /**
  * 阿里云 OSS 私有 Bucket 客户端
@@ -23,10 +24,6 @@ import crypto from "crypto"
  */
 
 // 支持两种格式：纯 region（如 "ap-southeast-1"）或带前缀（如 "oss-ap-southeast-1"）
-const rawRegion = process.env.ALI_OSS_REGION || "ap-southeast-1"
-const region = rawRegion.replace(/^oss-/, "")
-const bucket = process.env.ALI_OSS_BUCKET || "zhiyangku"
-
 // 签名 URL 默认有效期（秒）。前端列表/详情只读图片，1 小时足够；超过会自动重新签名
 export const SIGN_EXPIRES_SEC = Number(process.env.ALI_OSS_SIGN_EXPIRES || 3600)
 
@@ -175,50 +172,6 @@ export async function uploadToOss(
 export function signUrl(key: string, expiresSec: number = SIGN_EXPIRES_SEC): string {
     if (!key) return ""
     return oss.signatureUrl(key, { expires: expiresSec })
-}
-
-/** 手动构造阿里云 OSS v1 签名 PUT URL，Content-Type 行留空（让浏览器传任意类型都能匹配）
- *
- * v1 StringToSign = HTTP_METHOD + "\n" + Content-MD5 + "\n" + Content-Type + "\n" + Expiration + "\n" + CanonicalizedResource
- *
- * 关键设计：Content-Type 行留空，浏览器发什么 Content-Type 都能匹配。
- *
- * OSS v1 签名规则（PUT）：
- * - Content-Type 为空时，StringToSign 中该行留空（即只有换行符）
- * - 资源路径格式：/bucket-name/object-key（不含域名和协议）
- */
-export function signPutUrl(key: string, expiresSec = 300, contentType = ""): string {
-    if (!key) return ""
-
-    const accessKeyId = process.env.ALI_OSS_ACCESS_KEY_ID || ""
-    const accessKeySecret = process.env.ALI_OSS_ACCESS_KEY_SECRET || ""
-    if (!accessKeyId || !accessKeySecret) {
-        throw new Error("OSS 运行时缺少 ALI_OSS_ACCESS_KEY_ID 或 ALI_OSS_ACCESS_KEY_SECRET")
-    }
-
-    const objectKey = key // 已是 "patterns/images/xxx.jpg" 格式
-    const expiration = Math.floor(Date.now() / 1000) + expiresSec
-
-    // v1 签名：Content-Type 为空时留空行，传入 contentType 时则用实际值
-    const stringToSign = [
-        "PUT",
-        "",      // Content-MD5（可空）
-        contentType, // Content-Type（传入则用实际值，否则留空）
-        expiration.toString(),
-        `/${bucket}/${objectKey}`,
-    ].join("\n")
-
-    const signature = crypto
-        .createHmac("sha1", accessKeySecret)
-        .update(stringToSign)
-        .digest("base64")
-
-    const url = new URL(`https://${bucket}.oss-${region}.aliyuncs.com/${objectKey}`)
-    url.searchParams.set("OSSAccessKeyId", accessKeyId)
-    url.searchParams.set("Expires", expiration.toString())
-    url.searchParams.set("Signature", signature)
-
-    return url.toString()
 }
 
 /** 删除 OSS 资源（出错不抛出，由调用方决定如何处理） */

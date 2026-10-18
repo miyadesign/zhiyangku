@@ -94,8 +94,6 @@ async function uploadViaProxy(
         body: fileToUpload,
         // 中转路径让客户端等久些没关系；但仍要有限度，免得挂死
         signal: AbortSignal.timeout(120_000),
-        // keepalive 让同一会话的多次上传复用连接
-        keepalive: true,
     })
     if (!r.ok) {
         const err = await r.json().catch(() => ({}))
@@ -165,29 +163,29 @@ export async function uploadToOssDirect(
     const p = (async () => {
         try {
             const fileToUpload = compress ? await compress(file) : file
-            let directError: unknown
-            // 直传 OSS 优先（浏览器直连 OSS，跳开 Vercel 中转，没有 4.5MB 限制）
-            if (useDirectPut) {
-                try {
-                    console.log("[upload] 尝试直传...")
-                    return await tryDirectPut(fileToUpload, file.name, folder)
-                } catch (e) {
-                    directError = e
-                    console.warn("[upload] 直传失败:", e instanceof Error ? e.message : e)
-                }
-            }
-
-            // 直传失败才走代理（Vercel Serverless body 限制 4.5MB，大文件会 413）
+            let proxyError: unknown
+            // 优先走同源中转，避免中国大陆浏览器直连 OSS 超时；Vercel 大文件可再回退直传。
             try {
                 console.log("[upload] 尝试中转上传...")
                 return await uploadViaProxy(fileToUpload, file.name, folder)
             } catch (e) {
+                proxyError = e
                 console.warn("[upload] 中转失败:", e instanceof Error ? e.message : e)
-                const message = (reason: unknown) =>
-                    reason instanceof Error ? reason.message : String(reason)
-                const directReason = directError ? `直传：${message(directError)}；` : ""
-                throw new Error(`${directReason}中转：${message(e)}`)
             }
+
+            if (useDirectPut) {
+                try {
+                    console.log("[upload] 尝试直传...")
+                    return await tryDirectPut(fileToUpload, file.name, folder)
+                } catch (directError) {
+                    console.warn("[upload] 直传失败:", directError instanceof Error ? directError.message : directError)
+                    const message = (reason: unknown) =>
+                        reason instanceof Error ? reason.message : String(reason)
+                    throw new Error(`中转：${message(proxyError)}；直传：${message(directError)}`)
+                }
+            }
+
+            throw proxyError instanceof Error ? proxyError : new Error(String(proxyError))
         } catch (e) {
             uploadCache.get(file)?.delete(folder)
             throw e

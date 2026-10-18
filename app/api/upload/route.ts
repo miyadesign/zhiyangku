@@ -1,15 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { Readable } from "stream"
-import { oss } from "@/lib/oss"
+import { signPutUrl } from "@/lib/oss-sign"
 
 // 设计：客户端把文件以 application/octet-stream 直接 POST 到这里（不要 multipart）。
 //
-// 中转路径。用 Node 原生 Web stream → Readable → oss.putStream 直接转发：
-//   - 浏览器不需要编 multipart，省一次编码
-//   - Next.js 不解析 multipart，省一次解码
-//   - 不调 arrayBuffer() 整体加载到内存：130KB 不影响，10MB 文件就不会爆内存了
-//   - putStream 走单 PUT（不是 chunked multi-part），SDK 默认 keep-alive 复用连接
-//   - 整个流式 pipeline：客户端 → Next.js → OSS 一跳转发，端到端延迟更低
+// 中转路径使用 Web fetch 和 OSS 预签名 PUT 流式转发，避免 Cloudflare
+// Workers 下 ali-oss Node Agent 的响应处理不兼容，也不把文件整体读入内存。
 //
 // 性能日志：服务端打印各阶段耗时（接收头/流启动/put完成/总）便于排查瓶颈。
 // 协议：body 是原始 file bytes；x-filename / x-folder / x-oss-key 头携带元信息。
@@ -39,16 +34,22 @@ export async function POST(request: NextRequest) {
             key = `patterns/${folder}/${stamp}_${rand}${ext}`
         }
 
-        // Web ReadableStream → Node Readable（ali-oss SDK 用 Node stream 接口）
-        // 从 Next.js 的 Web stream 转到 Node stream 是 zero-copy 的（同底层）
-        const nodeStream = Readable.fromWeb(request.body as unknown as import("node:stream/web").ReadableStream)
-
         const tHeaders = Date.now() - tStart
         const tPut = Date.now()
-        // ali-oss 类型签名要求 PutStreamOptions 至少含一个 key；但允许只传部分字段
-        await oss.putStream(key, nodeStream, {
-            ...(contentLength > 0 ? { contentLength } : {}),
-        } as never)
+        const contentType = "application/octet-stream"
+        const upstream = await fetch(signPutUrl(key, 300, contentType), {
+            method: "PUT",
+            headers: { "Content-Type": contentType },
+            body: request.body,
+            signal: AbortSignal.timeout(110_000),
+            cache: "no-store",
+            // Node fetch requires this for streaming bodies; Workers also supports Web streams.
+            duplex: "half",
+        } as RequestInit & { duplex: "half" })
+        if (!upstream.ok) {
+            const detail = (await upstream.text().catch(() => "")).slice(0, 500)
+            throw new Error(`OSS PUT 失败 (${upstream.status})${detail ? `: ${detail}` : ""}`)
+        }
         const msPut = Date.now() - tPut
         const msTotal = Date.now() - tStart
         console.log(
