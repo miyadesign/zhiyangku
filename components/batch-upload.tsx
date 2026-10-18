@@ -1,6 +1,7 @@
 "use client"
 
 import { AlertCircle, CheckCircle2, Download, FileUp, Images, Loader2, X } from "lucide-react"
+import { strToU8, unzipSync, zipSync } from "fflate"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { type PatternInput } from "@/app/actions/patterns"
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
-/* ------------------------------------------------------------------ CSV 工具 */
+/* -------------------------------------------------------------- Excel 工具 */
 
 const TEMPLATE_HEADERS = [
   "名称",
@@ -36,8 +37,8 @@ const TEMPLATE_EXAMPLE = [
   "法式泡泡袖衬衫",
   "卫兰纸样",
   "上衣;女",
-  "shirt.png",
-  "shirt-size.png",
+  "",
+  "",
   "",
   "",
   "",
@@ -45,47 +46,199 @@ const TEMPLATE_EXAMPLE = [
   "春夏新款",
 ]
 
-function toCsv(rows: string[][]) {
-  const escape = (v: string) =>
-    /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
-  return rows.map((r) => r.map(escape).join(",")).join("\r\n")
+function xmlEscape(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
 }
 
-// 简单但支持引号转义的 CSV 解析
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ""
-  let inQuotes = false
-  // 去掉 BOM
-  const s = text.replace(/^\uFEFF/, "")
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i]
-    if (inQuotes) {
-      if (c === '"') {
-        if (s[i + 1] === '"') {
-          field += '"'
-          i++
-        } else inQuotes = false
-      } else field += c
-    } else if (c === '"') {
-      inQuotes = true
-    } else if (c === ",") {
-      row.push(field)
-      field = ""
-    } else if (c === "\n" || c === "\r") {
-      if (c === "\r" && s[i + 1] === "\n") i++
-      row.push(field)
-      rows.push(row)
-      row = []
-      field = ""
-    } else field += c
+function createExcelTemplate() {
+  const workbookXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets><sheet name="纸样清单" sheetId="1" r:id="rId1"/></sheets></workbook>`
+  const headerCells = [...TEMPLATE_HEADERS].map((header, i) => {
+    const ref = `${String.fromCharCode(65 + i)}1`
+    return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(header)}</t></is></c>`
+  }).join("")
+  const exampleCells = TEMPLATE_EXAMPLE.map((value, i) => {
+    const ref = `${String.fromCharCode(65 + i)}2`
+    return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`
+  }).join("")
+  const widths = [24, 20, 22, 16, 16, 16, 16, 16, 24, 28]
+    .map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`)
+    .join("")
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="72"/><cols>${widths}</cols><sheetData><row r="1" ht="25" customHeight="1">${headerCells}</row><row r="2">${exampleCells}</row></sheetData><autoFilter ref="A1:J2"/></worksheet>`
+  return zipSync({
+    "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`),
+    "_rels/.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
+    "xl/workbook.xml": strToU8(workbookXml),
+    "xl/_rels/workbook.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`),
+    "xl/worksheets/sheet1.xml": strToU8(sheetXml),
+  })
+}
+
+function columnIndex(ref: string) {
+  const letters = ref.match(/^[A-Z]+/i)?.[0]?.toUpperCase() ?? "A"
+  return [...letters].reduce((value, char) => value * 26 + char.charCodeAt(0) - 64, 0) - 1
+}
+
+function resolveZipPath(source: string, target: string) {
+  const parts = target.startsWith("/") ? [] : source.split("/").slice(0, -1)
+  for (const part of target.split("/")) {
+    if (!part || part === ".") continue
+    if (part === "..") parts.pop()
+    else parts.push(part)
   }
-  if (field.length > 0 || row.length > 0) {
-    row.push(field)
-    rows.push(row)
+  return parts.join("/")
+}
+
+function relationshipsPath(source: string) {
+  const parts = source.split("/")
+  const name = parts.pop()!
+  return [...parts, "_rels", `${name}.rels`].join("/")
+}
+
+function parseXml(data: Uint8Array) {
+  const xml = new DOMParser().parseFromString(new TextDecoder().decode(data), "application/xml")
+  if (xml.querySelector("parsererror")) throw new Error("Excel 工作簿内容无效")
+  return xml
+}
+
+function relationshipMap(xml: Document) {
+  return new Map(
+    Array.from(xml.getElementsByTagNameNS("*", "Relationship"), (node) => [
+      node.getAttribute("Id") ?? "",
+      node.getAttribute("Target") ?? "",
+    ]),
+  )
+}
+
+function firstChildByName(node: Element, name: string) {
+  return Array.from(node.getElementsByTagNameNS("*", name))[0] ?? null
+}
+
+function attributeByLocalName(node: Element, name: string) {
+  return Array.from(node.attributes).find((attribute) => attribute.localName === name)?.value
+}
+
+async function readExcel(file: File) {
+  const archive = unzipSync(new Uint8Array(await file.arrayBuffer()))
+  const workbookPath = "xl/workbook.xml"
+  const workbook = parseXml(archive[workbookPath])
+  const firstSheet = workbook.getElementsByTagNameNS("*", "sheet")[0]
+  if (!firstSheet) throw new Error("Excel 文件中没有工作表")
+  const workbookRels = relationshipMap(parseXml(archive[relationshipsPath(workbookPath)]))
+  const sheetPath = resolveZipPath(workbookPath, workbookRels.get(firstSheet.getAttribute("r:id") ?? "") ?? "")
+  const sheet = parseXml(archive[sheetPath])
+  const sharedStringsPath = "xl/sharedStrings.xml"
+  const sharedStrings = archive[sharedStringsPath]
+    ? Array.from(parseXml(archive[sharedStringsPath]).getElementsByTagNameNS("*", "si"), (item) =>
+        Array.from(item.getElementsByTagNameNS("*", "t"), (text) => text.textContent ?? "").join(""),
+      )
+    : []
+  const cellRows = new Map<number, Map<number, string>>()
+  const cellImageIds = new Map<number, Map<number, string>>()
+  for (const row of Array.from(sheet.getElementsByTagNameNS("*", "row"))) {
+    const rowNumber = Number(row.getAttribute("r"))
+    const values = new Map<number, string>()
+    for (const cell of Array.from(row.getElementsByTagNameNS("*", "c"))) {
+      const col = columnIndex(cell.getAttribute("r") ?? "A")
+      const type = cell.getAttribute("t")
+      const value = firstChildByName(cell, type === "inlineStr" ? "is" : "v")?.textContent ?? ""
+      values.set(col, type === "s" ? (sharedStrings[Number(value)] ?? "") : value)
+      const formula = firstChildByName(cell, "f")?.textContent ?? ""
+      const imageMatch = formula.match(/DISPIMG\s*\(\s*["']?([^"',)]+)/i)
+      if (imageMatch) {
+        const cells = cellImageIds.get(rowNumber) ?? new Map<number, string>()
+        cells.set(col, imageMatch[1])
+        cellImageIds.set(rowNumber, cells)
+      }
+    }
+    cellRows.set(rowNumber, values)
   }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""))
+  const header = cellRows.get(1)
+  if (!header) throw new Error("表格第一行需要填写模板标题")
+  const headers = new Map(Array.from(header, ([col, value]) => [value.trim(), col]))
+  const requiredHeaders = ["名称", "工作室", "品类标签", "电子文件名", "备注"]
+  for (const name of requiredHeaders) if (!headers.has(name)) throw new Error(`模板缺少“${name}”列`)
+  const imageColumnToIndex = new Map<number, number>()
+  for (let i = 1; i <= 5; i++) {
+    const col = headers.get(`图${i}`)
+    if (col !== undefined) imageColumnToIndex.set(col, i - 1)
+  }
+
+  const imageFiles = new Map<number, (File | null)[]>()
+  const drawingNode = firstChildByName(sheet.documentElement, "drawing")
+  if (drawingNode) {
+    const drawingRelId = drawingNode.getAttribute("r:id") ?? ""
+    const sheetRels = relationshipMap(parseXml(archive[relationshipsPath(sheetPath)]))
+    const drawingPath = resolveZipPath(sheetPath, sheetRels.get(drawingRelId) ?? "")
+    const drawing = parseXml(archive[drawingPath])
+    const drawingRels = relationshipMap(parseXml(archive[relationshipsPath(drawingPath)]))
+    const relTargets = new Map(Array.from(drawingRels, ([id, target]) => [id, resolveZipPath(drawingPath, target)]))
+    for (const anchor of Array.from(drawing.documentElement.children)) {
+      const from = firstChildByName(anchor, "from")
+      const rowNode = from && firstChildByName(from, "row")
+      const colNode = from && firstChildByName(from, "col")
+      if (!rowNode || !colNode) continue
+      const rowNumber = Number(rowNode.textContent) + 1
+      const imageIndex = imageColumnToIndex.get(Number(colNode.textContent))
+      if (imageIndex === undefined) continue
+      const blip = firstChildByName(anchor, "blip")
+      const embedId = blip?.getAttribute("r:embed")
+      const mediaPath = embedId ? relTargets.get(embedId) : undefined
+      const media = mediaPath ? archive[mediaPath] : undefined
+      if (!media || !mediaPath) continue
+      const imageName = mediaPath.split("/").pop() ?? `image-${imageIndex + 1}`
+      const extension = imageName.split(".").pop()?.toLowerCase() ?? "png"
+      const mime = extension === "jpg" ? "image/jpeg" : `image/${extension}`
+      const images = imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null)
+      images[imageIndex] = new File([media], imageName, { type: mime })
+      imageFiles.set(rowNumber, images)
+    }
+  }
+
+  // WPS and Excel's "place in cell" feature store image references as DISPIMG
+  // formulas backed by xl/cellImages.xml instead of worksheet drawings.
+  const cellImagesPath = Object.keys(archive).find((path) => path.toLowerCase() === "xl/cellimages.xml")
+  if (cellImagesPath) {
+    const cellImages = parseXml(archive[cellImagesPath])
+    const cellImageRels = relationshipMap(parseXml(archive[relationshipsPath(cellImagesPath)]))
+    const mediaByImageId = new Map<string, { path: string; data: Uint8Array }>()
+    for (const picture of Array.from(cellImages.getElementsByTagNameNS("*", "cellImage"))) {
+      const id = firstChildByName(picture, "cNvPr")?.getAttribute("name")
+      const embedId = firstChildByName(picture, "blip") && attributeByLocalName(firstChildByName(picture, "blip")!, "embed")
+      const target = embedId ? cellImageRels.get(embedId) : undefined
+      const path = target ? resolveZipPath(cellImagesPath, target) : undefined
+      const data = path ? archive[path] : undefined
+      if (id && path && data) mediaByImageId.set(id, { path, data })
+    }
+    for (const [rowNumber, cells] of cellImageIds) {
+      for (const [column, id] of cells) {
+        const imageIndex = imageColumnToIndex.get(column)
+        const media = mediaByImageId.get(id)
+        if (imageIndex === undefined || !media) continue
+        const imageName = media.path.split("/").pop() ?? `image-${imageIndex + 1}`
+        const extension = imageName.split(".").pop()?.toLowerCase() ?? "png"
+        const mime = extension === "jpg" ? "image/jpeg" : `image/${extension}`
+        const images = imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null)
+        images[imageIndex] = new File([media.data], imageName, { type: mime })
+        imageFiles.set(rowNumber, images)
+      }
+    }
+  }
+
+  return Array.from(cellRows.entries())
+    .filter(([rowNumber, values]) => rowNumber > 1 && Array.from(values.values()).some((value) => value.trim()))
+    .map(([rowNumber, values], index) => {
+      const get = (name: string) => values.get(headers.get(name) ?? -1)?.trim() ?? ""
+      return {
+        index: index + 1,
+        name: get("名称"),
+        studio: get("工作室"),
+        categories: splitTags(get("品类标签")),
+        imageFiles: imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null),
+        fileName: get("电子文件名"),
+        note: get("备注"),
+        errors: [],
+      }
+    })
 }
 
 function splitTags(raw: string): string[] {
@@ -102,8 +255,8 @@ type ParsedRow = {
   name: string
   studio: string
   categories: string[]
-  /** 图片文件名数组（按顺序，第一张为主图）。空字符串会被过滤掉。 */
-  imageNames: string[]
+  /** 在预览表图1-图5单元格中直接选择的图片。 */
+  imageFiles: (File | null)[]
   fileName: string
   note: string
   errors: string[]
@@ -135,11 +288,11 @@ export function BatchUpload({
    */
   onDone: (items: BatchUploadItem[]) => void
 }) {
-  const csvInputRef = useRef<HTMLInputElement>(null)
+  const workbookInputRef = useRef<HTMLInputElement>(null)
   const filesInputRef = useRef<HTMLInputElement>(null)
 
   const [rows, setRows] = useState<ParsedRow[]>([])
-  const [csvName, setCsvName] = useState<string | null>(null)
+  const [workbookName, setWorkbookName] = useState<string | null>(null)
   const [files, setFiles] = useState<Map<string, File>>(new Map())
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
@@ -153,7 +306,7 @@ export function BatchUpload({
 
   const reset = () => {
     setRows([])
-    setCsvName(null)
+    setWorkbookName(null)
     setFiles(new Map())
     setProgress({ done: 0, total: 0 })
   }
@@ -165,65 +318,35 @@ export function BatchUpload({
   }
 
   function downloadTemplate() {
-    const csv = toCsv([[...TEMPLATE_HEADERS], TEMPLATE_EXAMPLE])
-    // 加 BOM 保证 Excel 正确识别中文
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
+    const workbook = createExcelTemplate()
+    const blob = new Blob([workbook], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "纸样批量上传模版.csv"
+    a.download = "纸样批量上传模版.xlsx"
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
 
-  function handleCsv(file: File) {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const parsed = parseCsv(String(reader.result))
-      if (parsed.length < 2) {
-        toast.error("模版内容为空或缺少数据行")
+  async function handleExcel(file: File) {
+    try {
+      const out = await readExcel(file)
+      if (out.length === 0) {
+        toast.error("表格中没有数据行")
         return
       }
-      const [, ...dataRows] = parsed
-      const out: ParsedRow[] = dataRows.map((cols, i) => {
-        const c = cols.map((v) => v.trim())
-        const [name = "", studio = "", tags = "", ...rest] = c
-        // 列 4..8 为 5 张图片文件名（"图1".."图5"），过滤掉空字符串
-        const imageNames = rest.slice(0, 5).filter((v) => v !== "")
-        // 紧跟其后是电子文件名 + 备注（向后兼容：旧版 CSV 只有 1 张缩略图 + 1 张尺码表）
-        // 这里按列号自动判断：如果 imageNames 后面只剩 2 列，按 [电子文件名, 备注]
-        const tail = rest.slice(5)
-        let fileName = ""
-        let note = ""
-        if (tail.length >= 2) {
-          fileName = tail[0] ?? ""
-          note = tail[1] ?? ""
-        } else if (tail.length === 1) {
-          // 只有 1 列，可能是备注或电子文件名——按是否有扩展名启发式判断
-          const v = tail[0] ?? ""
-          if (/\.[a-z0-9]{2,4}$/i.test(v)) {
-            fileName = v
-          } else {
-            note = v
-          }
-        }
-        return {
-          index: i + 1,
-          name,
-          studio,
-          categories: splitTags(tags),
-          imageNames,
-          fileName,
-          note,
-          errors: [],
-        }
-      })
       setRows(out)
-      setCsvName(file.name)
+      setWorkbookName(file.name)
+      if (!out.some((row) => row.imageFiles.some(Boolean))) {
+        toast.warning("已读取表格，但没有在图1-图5列识别到图片。请确认图片与对应行、图片列对齐，并保存为 .xlsx 格式。")
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "读取 Excel 失败")
     }
-    reader.readAsText(file, "utf-8")
   }
 
   function handleFiles(list: FileList) {
@@ -238,12 +361,7 @@ export function BatchUpload({
       const errors: string[] = []
       if (!r.name) errors.push("缺少名称")
       if (!r.studio) errors.push("缺少工作室")
-      if (r.imageNames.length === 0) errors.push("缺少图片文件名")
-      else {
-        for (const n of r.imageNames) {
-          if (!files.has(n)) errors.push(`未找到图片「${n}」`)
-        }
-      }
+      if (!r.imageFiles.some(Boolean)) errors.push("请在图1-图5中选择至少一张图片")
       if (r.fileName && !files.has(r.fileName))
         errors.push(`未找到电子文件「${r.fileName}」`)
       return { ...r, errors }
@@ -287,7 +405,9 @@ export function BatchUpload({
         // 同一行的 N 个图片 + 电子文件并行上传
         const [imageKeys, fileUrl] = await Promise.all([
           Promise.all(
-            r.imageNames.map((n) => uploadOneQueued(files.get(n)!, "images")),
+            r.imageFiles
+              .filter((file): file is File => file !== null)
+              .map((file) => uploadOneQueued(file, "images")),
           ),
           r.fileName ? uploadOneQueued(files.get(r.fileName)!, "files") : Promise.resolve(null),
         ])
@@ -370,10 +490,9 @@ export function BatchUpload({
               1. 下载并填写模版
             </h3>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              下载 CSV 模版，按列填写纸样信息。品类标签用分号
+              下载 Excel 模版，按列填写纸样信息。把图片插入图1-图5对应单元格（第一张图作为主图），品类标签用分号
               <span className="mx-0.5 rounded bg-muted px-1">;</span>
-              分隔。图1-图5 填写<strong>文件名</strong>
-              （如 shirt.png），至少填写图1；选择文件时一起选上即可自动按文件名匹配。第一张图（"图1"）作为主图。
+              分隔。支持浮在单元格上方的图片，也支持 Excel/WPS 的“置于单元格内”图片；请确保图片位于正确的图1-图5列和对应数据行中。
             </p>
             <Button
               type="button"
@@ -387,42 +506,42 @@ export function BatchUpload({
             </Button>
           </section>
 
-          {/* 步骤 2：上传 CSV */}
+          {/* 步骤 2：上传 Excel */}
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground">
-              2. 上传填好的模版
+              2. 上传填好的 Excel 表格
             </h3>
             <button
               type="button"
-              onClick={() => csvInputRef.current?.click()}
+              onClick={() => workbookInputRef.current?.click()}
               className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/50 px-4 py-3 text-left text-sm transition-colors hover:border-primary hover:bg-accent/40"
             >
               <FileUp className="size-5 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {csvName ? (
-                  <span className="text-foreground">{csvName}</span>
+                {workbookName ? (
+                  <span className="text-foreground">{workbookName}</span>
                 ) : (
-                  "点击选择 CSV 模版文件"
+                  "点击选择含有嵌入图片的 .xlsx 文件"
                 )}
               </span>
             </button>
             <input
-              ref={csvInputRef}
+              ref={workbookInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0]
-                if (f) handleCsv(f)
+                if (f) void handleExcel(f)
                 e.target.value = ""
               }}
             />
           </section>
 
-          {/* 步骤 3：选择图片 / 文件 */}
+          {/* 步骤 3：选择电子文件 */}
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground">
-              3. 选择图片与电子文件
+              3. 选择电子文件（可选）
             </h3>
             <button
               type="button"
@@ -434,7 +553,7 @@ export function BatchUpload({
                 {files.size > 0 ? (
                   <span className="text-foreground">已选择 {files.size} 个文件</span>
                 ) : (
-                  "点击选择模版中引用的所有图片 / 文件（可多选）"
+                  "点击选择 Excel 中填写了文件名的电子文件（可多选）"
                 )}
               </span>
             </button>
@@ -458,14 +577,19 @@ export function BatchUpload({
                   预览（{validCount}/{validatedRows.length} 条可导入）
                 </h3>
               </div>
-              <div className="overflow-hidden rounded-lg border border-border">
-                <table className="w-full text-xs">
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[1100px] text-xs">
                   <thead className="bg-muted/60 text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium">状态</th>
                       <th className="px-3 py-2 text-left font-medium">名称</th>
                       <th className="px-3 py-2 text-left font-medium">工作室</th>
                       <th className="px-3 py-2 text-left font-medium">品类</th>
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <th key={i} className="min-w-36 px-3 py-2 text-left font-medium">
+                          图{i + 1}{i === 0 ? "（主图）" : ""}
+                        </th>
+                      ))}
                       <th className="px-3 py-2 text-left font-medium">说明</th>
                     </tr>
                   </thead>
@@ -490,6 +614,17 @@ export function BatchUpload({
                           <td className="px-3 py-2 text-muted-foreground">
                             {r.categories.join("、") || "—"}
                           </td>
+                          {r.imageFiles.map((image, imageIndex) => (
+                            <td key={imageIndex} className="min-w-36 px-3 py-2">
+                              {image ? (
+                                <span className="block max-w-36 truncate text-foreground" title={image.name}>
+                                  {image.name}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">未嵌入图片</span>
+                              )}
+                            </td>
+                          ))}
                           <td className="px-3 py-2">
                             {ok ? (
                               <span className="text-muted-foreground">就绪</span>
