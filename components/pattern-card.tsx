@@ -50,11 +50,10 @@ export function PatternCard({
               <button
                 type="button"
                 onClick={() => onEdit(pattern)}
-                aria-label={`编辑 ${pattern.name}`}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
+                aria-label={` 编辑 ${pattern.name}`}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
               >
                 <Pencil className="size-4 shrink-0" />
-                <span className="text-xs font-medium md:sr-only">编辑</span>
               </button>
             )}
             {onDelete && (
@@ -62,10 +61,10 @@ export function PatternCard({
                 type="button"
                 onClick={() => onDelete(pattern)}
                 aria-label={`删除 ${pattern.name}`}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-border bg-background px-2.5 text-destructive shadow-sm transition-colors hover:bg-destructive hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-8 md:gap-0 md:px-0 md:bg-background/90 md:backdrop-blur"
               >
                 <Trash2 className="size-4 shrink-0" />
-                <span className="text-xs font-medium md:sr-only">删除</span>
+
               </button>
             )}
           </div>
