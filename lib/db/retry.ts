@@ -2,11 +2,11 @@
  * 包装数据库查询，对瞬时错误自动重试。
  *
  * 适用场景：
- *   - Neon serverless RST 掉 TCP 连接
+ *   - Neon serverless / fetch 请求中途断开（例如 "Connection closed"）
  *   - 任何网络抖动、DNS 重解析
  *
  * 重试策略：最多 4 次，指数退避 300ms / 800ms / 1800ms / 3500ms。
- * 加上每次 queryDb 内部"全新连接"，几乎可以保证冷启动 1-2 次内成功。
+ * Neon HTTP 每次查询都会发起 HTTP 请求；遇到可恢复的网络断连时重新执行查询。
  */
 export async function queryWithRetry<T>(fn: () => Promise<T>): Promise<T> {
     const delays = [300, 800, 1800, 3500] // ms
@@ -33,6 +33,9 @@ function isRetryableError(e: unknown): boolean {
     return (
         text.includes("connection terminated") ||
         text.includes("connection terminated unexpectedly") ||
+        text.includes("connection closed") ||
+        text.includes("closed connection") ||
+        text.includes("socket closed") ||
         text.includes("econnreset") ||
         text.includes("econnrefused") ||
         text.includes("enotfound") ||
