@@ -1,6 +1,7 @@
 "use server"
 
 import { eq, sql } from "drizzle-orm"
+import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
@@ -83,6 +84,25 @@ async function deleteUnreferencedOssKeys(keys: string[], keepKeys: string[] = []
             .filter((key) => !referenced.has(key))
             .map((key) => deleteFromOss(key)),
     )
+}
+
+/** 图片清理属于后置工作，不应延迟 Server Action 的正常响应。 */
+function scheduleUnreferencedOssCleanup(keys: string[], keepKeys: string[] = []) {
+    if (keys.length === 0) return
+    const cleanup = deleteUnreferencedOssKeys(keys, keepKeys).catch((error) => {
+        console.error("[patterns] OSS cleanup failed:", error)
+    })
+
+    try {
+        const context = getCloudflareContext()
+        const workerContext = context.ctx as { waitUntil?: (promise: Promise<unknown>) => void }
+        if (workerContext.waitUntil) {
+            workerContext.waitUntil(cleanup)
+            return
+        }
+    } catch {
+        // 本地开发环境没有 Worker 生命周期上下文，清理任务仍在后台继续。
+    }
 }
 
 export type PatternInput = {
@@ -239,7 +259,7 @@ export async function updatePattern(id: number, input: PatternInput) {
         .filter((key) => key && !retainedKeys.has(key))
     // 额外保护本次保存后仍在该纸样图片列表中的 key，避免数据库读取短暂滞后
     // 或历史地址格式差异导致误删仍在使用的图片。
-    await deleteUnreferencedOssKeys(removedKeys, imageKeys)
+    scheduleUnreferencedOssCleanup(removedKeys, imageKeys)
 
     updateTag("patterns")
 }
@@ -256,7 +276,7 @@ export async function deletePattern(id: number) {
             ...(row.images ?? []),
             row.fileUrl ?? null,
         ].filter(Boolean) as string[]
-        await deleteUnreferencedOssKeys(keys)
+        scheduleUnreferencedOssCleanup(keys)
     }
     updateTag("patterns")
 }
