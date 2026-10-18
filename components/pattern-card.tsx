@@ -76,21 +76,6 @@ export function PatternCard({
           </div>
         </button>
 
-        {onToggleFavorite && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggleFavorite(pattern.id)
-            }}
-            aria-label={favorite ? `取消收藏 ${pattern.name}` : `收藏 ${pattern.name}`}
-            aria-pressed={favorite}
-            className="absolute left-2 top-2 z-10 inline-flex size-8 items-center justify-center rounded-full border border-border/70 bg-background/90 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-rose-600"
-          >
-            <Heart className={favorite ? "size-4 fill-rose-500 text-rose-600" : "size-4"} />
-          </button>
-        )}
-
         {manageable && (
           <div className="absolute right-1 top-1 z-10 hidden gap-1 transition-opacity md:flex md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
             {onEdit && (
@@ -120,9 +105,23 @@ export function PatternCard({
 
       <div className="flex flex-1 flex-col gap-2.5 p-3.5">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-pretty text-sm font-medium leading-snug text-card-foreground">
+          <h3 className="min-w-0 flex-1 text-pretty text-sm font-medium leading-snug text-card-foreground">
             {pattern.name}
           </h3>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleFavorite(pattern.id)
+              }}
+              aria-label={favorite ? `取消收藏 ${pattern.name}` : `收藏 ${pattern.name}`}
+              aria-pressed={favorite}
+              className="inline-flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-rose-600"
+            >
+              <Heart className={favorite ? "size-4 fill-rose-500 text-rose-600" : "size-4"} />
+            </button>
+          )}
         </div>
 
         {/* 所有端：工作室 + 标签同行（studio 左 / 标签右）。
