@@ -1,6 +1,7 @@
 "use client"
 
 import { Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { createPattern, createPatternsBatch, deletePattern, updatePattern } from "@/app/actions/patterns"
@@ -60,6 +61,21 @@ export function Gallery({
   const [batchOpen, setBatchOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GalleryPattern | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Keep other devices reasonably fresh without requiring a manual reload.
+  // Pause while a dialog is open so a refresh cannot interrupt an active edit/import.
+  useEffect(() => {
+    if (active || editorOpen || tagManagerOpen || batchOpen || deleteTarget) return
+    const refreshIfVisible = () => {
+      if (!document.hidden) router.refresh()
+    }
+    const timer = window.setInterval(refreshIfVisible, 15_000)
+    document.addEventListener("visibilitychange", refreshIfVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refreshIfVisible)
+    }
+  }, [router, active, editorOpen, tagManagerOpen, batchOpen, deleteTarget])
 
   // 标签名 -> 颜色 key
   const tagColors = useMemo(() => {
