@@ -173,9 +173,4 @@ export async function register() {
         return globalThis.fetch(input, init)
     }) as typeof fetch
 
-    // OSS 连接池预热：进程起来就付 1 次 SSL 握手成本，让首次上传 0 等待
-    // 异步执行，不阻塞 register() 返回
-    import("./lib/oss")
-        .then((m) => m.warmupOss())
-        .catch(() => undefined)
 }
