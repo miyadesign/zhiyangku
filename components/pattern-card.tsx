@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import { Pencil, Trash2 } from "lucide-react"
 import { CategoryBadge } from "@/components/category-badge"
 import { thumbnailSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
@@ -20,8 +21,35 @@ export function PatternCard({
   onDelete?: (pattern: GalleryPattern) => void
 }) {
   const manageable = !!onEdit || !!onDelete
+  const cardRef = useRef<HTMLDivElement>(null)
+  const [nearViewport, setNearViewport] = useState(priority)
+
+  // Native loading="lazy" often starts too close to the viewport, especially
+  // on mobile Safari. Begin fetching a few rows ahead so the image is ready by
+  // the time the user scrolls to the card.
+  useEffect(() => {
+    if (priority || nearViewport) return
+    const card = cardRef.current
+    if (!card) return
+    if (typeof IntersectionObserver === "undefined") {
+      setNearViewport(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return
+        setNearViewport(true)
+        observer.disconnect()
+      },
+      { rootMargin: "1000px 0px" },
+    )
+    observer.observe(card)
+    return () => observer.disconnect()
+  }, [priority, nearViewport])
+
   return (
-    <div className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md">
+    <div ref={cardRef} className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md">
       <div className="relative">
         <button
           type="button"
@@ -36,7 +64,7 @@ export function PatternCard({
               src={thumbnailSrc(pattern.thumbnailUrl) || "/placeholder.svg"}
               alt={`${pattern.name} 纸样预览`}
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              loading={priority ? "eager" : "lazy"}
+              loading={nearViewport ? "eager" : "lazy"}
               fetchPriority={priority ? "high" : "auto"}
               decoding="async"
               onError={imgOnError}
