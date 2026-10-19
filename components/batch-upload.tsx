@@ -28,8 +28,8 @@ const TEMPLATE_HEADERS = [
   "图3",
   "图4",
   "图5",
-  "电子文件名",
   "网盘链接",
+  "电子文件名",
   "备注",
 ] as const
 
@@ -43,8 +43,8 @@ const TEMPLATE_EXAMPLE = [
   "",
   "",
   "",
-  "shirt.pdf",
   "",
+  "shirt.pdf",
   "春夏新款",
 ]
 
@@ -62,7 +62,7 @@ function createExcelTemplate() {
     const ref = `${String.fromCharCode(65 + i)}2`
     return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`
   }).join("")
-  const widths = [24, 20, 22, 16, 16, 16, 16, 16, 24, 36, 28]
+  const widths = [24, 20, 22, 16, 16, 16, 16, 16, 36, 24, 28]
     .map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`)
     .join("")
   const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="72"/><cols>${widths}</cols><sheetData><row r="1" ht="25" customHeight="1">${headerCells}</row><row r="2">${exampleCells}</row></sheetData><autoFilter ref="A1:K2"/></worksheet>`

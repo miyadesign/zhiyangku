@@ -6,7 +6,7 @@ import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
-import { getAllPatterns } from "@/lib/queries"
+import { getAllPatterns, getAllTags } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
 
 function toSignedUrl(key: string | null): string {
@@ -119,6 +119,12 @@ export type PatternInput = {
 
 export async function listPatterns() {
     return getAllPatterns()
+}
+
+/** 后台同步数据使用 Server Action 调用，客户端可以安全捕获瞬时读取失败。 */
+export async function getGallerySnapshot() {
+    const [patterns, tags] = await Promise.all([getAllPatterns(), getAllTags()])
+    return { patterns, tags }
 }
 
 export type CreatePatternResult = {

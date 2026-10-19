@@ -1,10 +1,9 @@
 "use client"
 
 import { Heart, Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { createPattern, createPatternsBatch, deletePattern, updatePattern } from "@/app/actions/patterns"
+import { createPattern, createPatternsBatch, deletePattern, getGallerySnapshot, updatePattern } from "@/app/actions/patterns"
 import { PatternCard } from "@/components/pattern-card"
 import { PatternModal } from "@/components/pattern-modal"
 import { PatternEditor, type EditablePattern } from "@/components/pattern-editor"
@@ -43,7 +42,6 @@ export function Gallery({
   patterns: GalleryPattern[]
   tags: AdminTag[]
 }) {
-  const router = useRouter()
   const [studio, setStudio] = useState<string>("all")
   const [categories, setCategories] = useState<string[]>([])
   const [query, setQuery] = useState("")
@@ -85,6 +83,7 @@ export function Gallery({
   // 本地可写的纸样列表（乐观更新）。首屏来自服务端数据，新增/编辑/删除时立刻改这里，
   // 后台 fire-and-forget 同步到 server（unstable_cache 命中时刷新几乎无感）。
   const [patterns, setPatterns] = useState<GalleryPattern[]>(initialPatterns)
+  const [currentTags, setCurrentTags] = useState<AdminTag[]>(tags)
   useEffect(() => {
     setPatterns(initialPatterns)
   }, [initialPatterns])
@@ -98,31 +97,47 @@ export function Gallery({
   const [deleting, setDeleting] = useState(false)
 
   // Keep other devices reasonably fresh without requiring a manual reload.
-  // Pause while a dialog is open so a refresh cannot interrupt an active edit/import.
+  // Use a safely caught Server Action instead of router.refresh(), so a transient
+  // database error cannot replace the whole gallery with the route error boundary.
+  const snapshotRequestInFlight = useRef(false)
   useEffect(() => {
     if (active || editorOpen || tagManagerOpen || batchOpen || deleteTarget) return
-    const refreshIfVisible = () => {
-      if (!document.hidden) router.refresh()
+    let disposed = false
+    const refreshIfVisible = async () => {
+      if (document.hidden || snapshotRequestInFlight.current) return
+      snapshotRequestInFlight.current = true
+      try {
+        const snapshot = await getGallerySnapshot()
+        if (disposed) return
+        setPatterns(snapshot.patterns)
+        setCurrentTags(snapshot.tags)
+      } catch (error) {
+        // Keep the last good snapshot visible; a later poll will retry.
+        console.warn("[gallery] Background refresh failed; keeping current data", error)
+      } finally {
+        snapshotRequestInFlight.current = false
+      }
     }
     const timer = window.setInterval(refreshIfVisible, 15_000)
     document.addEventListener("visibilitychange", refreshIfVisible)
     return () => {
+      disposed = true
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", refreshIfVisible)
     }
-  }, [router, active, editorOpen, tagManagerOpen, batchOpen, deleteTarget])
+  }, [active, editorOpen, tagManagerOpen, batchOpen, deleteTarget])
 
   // 标签名 -> 颜色 key
   const tagColors = useMemo(() => {
     const m: Record<string, string> = {}
-    tags.forEach((t) => (m[t.name] = t.color))
+    currentTags.forEach((t) => (m[t.name] = t.color))
     return m
-  }, [tags])
+  }, [currentTags])
 
   // 编辑器用的标签信息
   const tagInfos = useMemo<TagInfo[]>(
-    () => tags.map((t) => ({ name: t.name, color: t.color as TagInfo["color"] })),
-    [tags],
+    () => currentTags.map((t) => ({ name: t.name, color: t.color as TagInfo["color"] })),
+    [currentTags],
   )
 
   // 数据版本号：服务器返回的 patterns 引用变化时递增，用于触发本地状态重置
@@ -458,7 +473,7 @@ export function Gallery({
         <main className="min-w-0 flex-1 px-4 py-5 sm:px-6">
           {/* 品类标签筛选栏 */}
           <div className="mb-5 flex flex-wrap items-center gap-2">
-            {tags.map((tag) => {
+            {currentTags.map((tag) => {
               const selected = categories.includes(tag.name)
               const c = tagColorClasses(tag.color)
               return (
@@ -587,7 +602,7 @@ export function Gallery({
       <TagManager
         open={tagManagerOpen}
         onOpenChange={setTagManagerOpen}
-        tags={tags}
+        tags={currentTags}
       />
 
       <BatchUpload
