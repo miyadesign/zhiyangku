@@ -1,6 +1,7 @@
 "use client"
 
-import { Heart, LogIn, LogOut, Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
+import { Heart, LogIn, LogOut, Plus, Ruler, Search, Table2, Tags, Upload, X } from "lucide-react"
+import Link from "next/link"
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { loginAdmin, logoutAdmin } from "@/app/actions/admin"
@@ -10,7 +11,7 @@ import { PatternModal } from "@/components/pattern-modal"
 import { PatternEditor, type EditablePattern } from "@/components/pattern-editor"
 import { BatchUpload, type BatchUploadItem } from "@/components/batch-upload"
 import { TagManager, type AdminTag } from "@/components/tag-manager"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -467,6 +468,10 @@ export function Gallery({
                     <Plus className="mr-1.5 size-4" />
                     新增纸样
                   </Button>
+                  <Link href="/table" className={cn(buttonVariants({ variant: "outline" }), "hidden md:inline-flex")}>
+                    <Table2 className="mr-1.5 size-4" />
+                    在线表格
+                  </Link>
                   <Button variant="outline" size="default" onClick={handleAdminLogout} disabled={authBusy}>
                     <LogOut className="mr-1.5 size-4" />
                     退出管理

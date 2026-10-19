@@ -1,6 +1,6 @@
 "use server"
 
-import { eq, sql } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
@@ -303,6 +303,116 @@ export async function updatePattern(id: number, input: PatternInput) {
     updateTag("patterns")
 }
 
+export type SpreadsheetPatternUpdate = {
+    id: number
+    name: string
+    studio: string
+    categories: string[]
+    images: string[]
+    cloudDriveUrl: string | null
+    note: string | null
+}
+
+/** 保存在线表格中的多行纸样字段，包含图片顺序和主图。 */
+export async function updatePatternsBatch(inputs: SpreadsheetPatternUpdate[]) {
+    await requireAdmin()
+    const unique = new Map<number, SpreadsheetPatternUpdate>()
+    for (const input of inputs) {
+        if (!Number.isSafeInteger(input.id) || input.id <= 0) throw new Error("纸样编号无效")
+        const name = input.name.trim()
+        const studio = input.studio.trim()
+        if (!name) throw new Error("请填写纸样名称")
+        if (!studio) throw new Error("请填写工作室")
+        const images = cleanImageKeys(input.images)
+        if (images.length === 0) throw new Error(`「${name}」至少需要保留一张图片`)
+        unique.set(input.id, {
+            id: input.id,
+            name,
+            studio,
+            categories: [...new Set(input.categories.map((value) => value.trim()).filter(Boolean))],
+            images,
+            cloudDriveUrl: input.cloudDriveUrl?.trim() || null,
+            note: input.note?.trim() || null,
+        })
+    }
+    const updates = [...unique.values()]
+    if (updates.length === 0) return []
+
+    const categoryNames = [...new Set(updates.flatMap((input) => input.categories))]
+    if (categoryNames.length > 0) {
+        await queryDb(async (db) => {
+            const [{ maxOrder }] = await db
+                .select({ maxOrder: sql<number>`coalesce(max(${tags.sortOrder}), 0)` })
+                .from(tags)
+            await db
+                .insert(tags)
+                .values(categoryNames.map((name, index) => ({
+                    name,
+                    color: "slate",
+                    sortOrder: (maxOrder ?? 0) + index + 1,
+                })))
+                .onConflictDoNothing({ target: tags.name })
+        })
+        updateTag("tags")
+    }
+
+    const payload = updates.map((input) => ({
+        id: input.id,
+        name: input.name,
+        studio: input.studio,
+        categories: input.categories,
+        images: input.images,
+        thumbnail_url: input.images[0],
+        cloud_drive_url: input.cloudDriveUrl,
+        note: input.note,
+    }))
+    const previousRows = await queryDb((db) =>
+        db.select({ id: patterns.id, images: patterns.images })
+            .from(patterns)
+            .where(inArray(patterns.id, updates.map((input) => input.id))),
+    )
+    const changed = await queryWithRetry(() => sqlDb`
+        WITH updates AS (
+            SELECT * FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb) AS item(
+                id integer,
+                name text,
+                studio text,
+                categories text[],
+                images text[],
+                thumbnail_url text,
+                cloud_drive_url text,
+                note text
+            )
+        )
+        UPDATE patterns AS pattern SET
+            name = updates.name,
+            studio = updates.studio,
+            categories = updates.categories,
+            images = updates.images,
+            thumbnail_url = updates.thumbnail_url,
+            cloud_drive_url = updates.cloud_drive_url,
+            note = updates.note,
+            updated_at = NOW()
+        FROM updates
+        WHERE pattern.id = updates.id
+        RETURNING pattern.id
+    `)
+    const changedIds = (changed as Array<{ id: number }>).map((row) => Number(row.id))
+    if (changedIds.length !== updates.length) {
+        throw new Error(`批量保存不完整：预期 ${updates.length} 条，实际保存 ${changedIds.length} 条`)
+    }
+    const previousById = new Map(previousRows.map((row) => [row.id, row.images ?? []]))
+    for (const input of updates) {
+        const retainedKeys = new Set(input.images)
+        const removedKeys = (previousById.get(input.id) ?? [])
+            .map(normalizeImageKey)
+            .filter((key) => key && !retainedKeys.has(key))
+        scheduleUnreferencedOssCleanup(removedKeys, input.images)
+    }
+    updateTag("patterns")
+    return changedIds
+}
+
 export async function deletePattern(id: number) {
     await requireAdmin()
     const row = await queryDb(async (db) => {
@@ -320,4 +430,25 @@ export async function deletePattern(id: number) {
     }
     // Gallery 已先在当前设备乐观移除该条记录；此处不立即重验证整个 RSC 页面，
     // 避免删除一条纸样时触发整页数据刷新。其他设备通过 15 秒轮询读取更新。
+}
+
+export async function deletePatternsBatch(ids: number[]) {
+    await requireAdmin()
+    const uniqueIds = [...new Set(ids.filter((id) => Number.isSafeInteger(id) && id > 0))]
+    if (uniqueIds.length === 0) return []
+    const rows = await queryDb((db) =>
+        db.select({ id: patterns.id, images: patterns.images, fileUrl: patterns.fileUrl })
+            .from(patterns)
+            .where(inArray(patterns.id, uniqueIds)),
+    )
+    const foundIds = rows.map((row) => row.id)
+    if (foundIds.length > 0) {
+        await queryDb((db) => db.delete(patterns).where(inArray(patterns.id, foundIds)))
+        scheduleUnreferencedOssCleanup(rows.flatMap((row) => [
+            ...(row.images ?? []),
+            ...(row.fileUrl ? [row.fileUrl] : []),
+        ]))
+        updateTag("patterns")
+    }
+    return foundIds
 }
