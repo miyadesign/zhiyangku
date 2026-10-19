@@ -508,7 +508,7 @@ export function Gallery({
       <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row">
         {/* 工作室导航：桌面端固定，移动端从左侧滑出 */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-50 h-full w-72 max-w-[85vw] overflow-y-auto border-r border-border bg-background px-4 py-4 shadow-xl transition-transform md:sticky md:top-[85px] md:z-auto md:h-[calc(100vh-85px)] md:w-56 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:px-5 md:py-6 md:shadow-none",
+          "fixed inset-y-0 left-0 z-50 h-full w-72 max-w-[85vw] overflow-y-auto border-r border-border bg-background px-4 py-4 shadow-xl transition-transform md:sticky md:top-[20px] md:z-auto md:h-[calc(100vh-20px)] md:w-56 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:px-5 md:py-6 md:shadow-none",
           mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}>
           <div className="mb-3 flex items-center justify-between md:hidden">
