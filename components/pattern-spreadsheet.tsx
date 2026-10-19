@@ -300,20 +300,39 @@ export function PatternSpreadsheet({
               </Button>
               {dirtyRows.length > 0 && <span className="text-xs text-amber-700">有 {dirtyRows.length} 条未保存</span>}
             </div>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              每页
-              <select
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-                className="h-8 rounded-lg border border-input bg-background px-2 text-foreground"
-              >
-                {[10, 15, 20].map((size) => <option key={size} value={size}>{size} 条</option>)}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                每页
+                <select
+                  value={pageSize}
+                  onChange={(event) => setPageSize(Number(event.target.value))}
+                  className="h-8 rounded-lg border border-input bg-background px-2 text-foreground"
+                >
+                  {[10, 15, 20].map((size) => <option key={size} value={size}>{size} 条</option>)}
+                </select>
+              </label>
+              <span className="whitespace-nowrap text-sm text-muted-foreground">第 {page} / {pageCount} 页</span>
+              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+                <ChevronLeft className="size-4" />上一页
+              </Button>
+              <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>
+                下一页<ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full min-w-[1260px] border-collapse text-sm">
+            <table className="w-full min-w-[1120px] table-fixed border-collapse text-sm">
+              <colgroup>
+                <col className="w-10" />
+                <col className="w-44" />
+                <col className="w-24" />
+                <col className="w-32" />
+                <col />
+                <col className="w-56" />
+                <col className="w-14" />
+                <col className="w-28" />
+              </colgroup>
               <thead className="bg-muted text-left text-muted-foreground">
                 <tr className="border-b border-border">
                   <th className="w-10 px-3 py-3">
@@ -328,10 +347,10 @@ export function PatternSpreadsheet({
                       })}
                     />
                   </th>
-                  <th className="w-48 px-3 py-3">名称</th>
+                  <th className="w-44 px-3 py-3">名称</th>
                   <th className="w-24 px-3 py-3">工作室</th>
                   <th className="w-32 px-3 py-3">标签</th>
-                  <th className="w-56 px-3 py-3">图片</th>
+                  <th className="px-3 py-3">图片</th>
                   <th className="w-56 px-3 py-3">网盘链接</th>
                   <th className="w-14 px-3 py-3">备注</th>
                   <th className="sticky right-0 z-20 w-28 bg-muted px-3 py-3 text-right">操作</th>
@@ -369,7 +388,7 @@ export function PatternSpreadsheet({
                       <td className="px-2 py-2 align-middle">
                         <Input value={row.categoriesText} onChange={(event) => changeRow(row.id, { categoriesText: event.target.value, categories: inputTags(event.target.value) })} aria-label="标签，使用逗号分隔" placeholder="标签用逗号分隔" />
                       </td>
-                      <td className="w-56 max-w-56 px-2 py-2 align-middle">
+                      <td className="px-2 py-2 align-middle">
                         <MultiImageUpload
                           label=""
                           compact
@@ -398,17 +417,6 @@ export function PatternSpreadsheet({
             </table>
           </div>
 
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            <span className="text-sm text-muted-foreground">第 {page} / {pageCount} 页</span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
-                <ChevronLeft className="size-4" />上一页
-              </Button>
-              <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>
-                下一页<ChevronRight className="size-4" />
-              </Button>
-            </div>
-          </div>
         </main>
       </div>
 
