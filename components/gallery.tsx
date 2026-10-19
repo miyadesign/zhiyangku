@@ -505,10 +505,10 @@ export function Gallery({
         />
       )}
 
-      <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row">
+      <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row md:pl-[180px]">
         {/* 工作室导航：桌面端固定，移动端从左侧滑出 */}
         <aside className={cn(
-          "fixed inset-y-0 left-0 z-50 h-full w-72 max-w-[85vw] overflow-y-auto border-r border-border bg-background px-4 py-4 shadow-xl transition-transform md:sticky md:top-[20px] md:z-auto md:h-[calc(100vh-20px)] md:w-56 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:px-5 md:py-6 md:shadow-none",
+          "sidebar-thin-scrollbar fixed inset-y-0 left-0 z-50 h-full w-72 max-w-[85vw] overflow-y-auto border-r border-border bg-background px-4 py-4 shadow-xl transition-transform md:inset-y-auto md:bottom-auto md:left-[max(calc((100vw-1400px)/2),0px)] md:top-[45px] md:z-20 md:h-[calc(100vh-45px)] md:w-[180px] md:overflow-y-auto md:border-r md:px-2 md:py-6 md:shadow-none",
           mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}>
           <div className="mb-3 flex items-center justify-between md:hidden">
@@ -524,21 +524,22 @@ export function Gallery({
                 <button
                   key={item.key}
                   type="button"
+                  title={item.label}
                   onClick={() => {
                     setStudio(item.key)
                     setMobileNavOpen(false)
                   }}
                   aria-pressed={isActive}
                   className={cn(
-                    "flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors md:w-full",
+                    "flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors md:w-full md:px-2",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                   )}
                 >
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
                     {item.key === "favorites" && <Heart className="size-3.5" />}
-                    {item.label}
+                    <span className="truncate">{item.label}</span>
                   </span>
                   <span
                     className={cn(

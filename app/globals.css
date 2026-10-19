@@ -170,3 +170,25 @@
     cursor: pointer;
   }
 }
+
+.sidebar-thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 38%, transparent) transparent;
+}
+
+.sidebar-thin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-thin-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 38%, transparent);
+}
+
+.sidebar-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--primary) 72%, transparent);
+}
