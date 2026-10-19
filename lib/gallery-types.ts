@@ -11,6 +11,8 @@ export type GalleryPattern = {
     fileUrl: string | null
     /** 电子版纸样文件的原始文件名（下载时使用） */
     fileName: string | null
+    /** 网盘分享链接（可选） */
+    cloudDriveUrl: string | null
     note: string | null
 }
 

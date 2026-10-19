@@ -222,6 +222,7 @@ export function Gallery({
       images: p.imageUrls,
       fileUrl: p.fileUrl,
       fileName: p.fileName,
+      cloudDriveUrl: p.cloudDriveUrl,
       note: p.note,
     })
     setEditorOpen(true)
@@ -261,6 +262,7 @@ export function Gallery({
         thumbnailUrl: input.images[0] ?? "",
         fileUrl: input.fileUrl ?? null,
         fileName: input.fileName ?? null,
+        cloudDriveUrl: input.cloudDriveUrl ?? null,
         note: input.note ?? null,
       }
       setPatterns((prev) => prev.map((p) => (p.id === pattern.id ? optimistic : p)))
@@ -275,6 +277,7 @@ export function Gallery({
         thumbnailUrl: input.images[0] ?? "",
         fileUrl: input.fileUrl ?? null,
         fileName: input.fileName ?? null,
+        cloudDriveUrl: input.cloudDriveUrl ?? null,
         note: input.note ?? null,
       }
       setPatterns((prev) => [optimistic, ...prev])
@@ -332,6 +335,7 @@ export function Gallery({
       thumbnailUrl: it.images[0] ?? "",
       fileUrl: it.fileUrl ?? null,
       fileName: it.fileName ?? null,
+      cloudDriveUrl: it.cloudDriveUrl ?? null,
       note: it.note ?? null,
     }))
     setPatterns((prev) => [...saved, ...prev])

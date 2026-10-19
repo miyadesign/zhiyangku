@@ -30,6 +30,7 @@ export type EditablePattern = {
   images: string[]
   fileUrl: string | null
   fileName: string | null
+  cloudDriveUrl: string | null
   note: string | null
 }
 
@@ -66,6 +67,7 @@ export function PatternEditor({
   const [fileName, setFileName] = useState<string | null>(
     pattern?.fileName ?? null,
   )
+  const [cloudDriveUrl, setCloudDriveUrl] = useState(pattern?.cloudDriveUrl ?? "")
   const [note, setNote] = useState(pattern?.note ?? "")
   const [submitting, setSubmitting] = useState(false)
 
@@ -88,6 +90,7 @@ export function PatternEditor({
       images,
       fileUrl,
       fileName,
+      cloudDriveUrl: cloudDriveUrl.trim() || null,
       note: note.trim() || null,
     }
 
@@ -204,6 +207,17 @@ export function PatternEditor({
             values={images}
             onChange={setImages}
           />
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="p-cloud-drive-url">网盘链接（可选）</Label>
+            <Input
+              id="p-cloud-drive-url"
+              type="url"
+              value={cloudDriveUrl}
+              onChange={(e) => setCloudDriveUrl(e.target.value)}
+              placeholder="粘贴网盘分享链接"
+            />
+          </div>
 
           <ImageUpload
             label="电子版纸样文件（可选，PDF / 压缩包 / PLT 等）"

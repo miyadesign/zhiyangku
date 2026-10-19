@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Download, Pencil, Trash2, X } from "lucide-react"
+import { ChevronLeft, ChevronRight, Copy, Download, Pencil, Trash2, X } from "lucide-react"
+import { toast } from "sonner"
 import {
   TransformComponent,
   TransformWrapper,
@@ -62,6 +63,16 @@ export function PatternModal({
   const imageUrls = pattern?.imageUrls ?? []
   const hasMultiple = imageUrls.length > 1
   const currentSrc = imageUrls[currentIdx] ?? ""
+
+  async function copyCloudDriveLink() {
+    if (!pattern?.cloudDriveUrl) return
+    try {
+      await navigator.clipboard.writeText(pattern.cloudDriveUrl)
+      toast.success("网盘链接已复制")
+    } catch {
+      toast.error("复制失败，请检查浏览器剪贴板权限")
+    }
+  }
 
   // react-zoom-pan-pinch 在 scale = 1 时仍然允许 pan，体验反直觉。
   // 解决：panning.disabled 直接绑定到 isZoomed（源码 2541 行：mousedown 时直接 return），
@@ -325,16 +336,28 @@ export function PatternModal({
             提示：滚轮或双指缩放查看图片细节，多张图片可点击下方缩略图或左右切换。
           </p>
 
-          <button
-            type="button"
-            onClick={() => onDownload(pattern)}
-            disabled={!pattern.fileUrl}
-            title={pattern.fileUrl ? "下载电子版纸样文件" : "暂无电子版纸样文件"}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Download className="size-4" aria-hidden="true" />
-            {pattern.fileUrl ? "下载电子纸样" : "暂无电子文件"}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => onDownload(pattern)}
+              disabled={!pattern.fileUrl}
+              title={pattern.fileUrl ? "下载电子版纸样文件" : "暂无电子版纸样文件"}
+              aria-label={pattern.fileUrl ? "下载电子纸样" : "暂无电子文件"}
+              className="inline-flex size-12 shrink-0 items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="size-5" aria-hidden="true" />
+            </button>
+            {pattern.cloudDriveUrl && (
+              <button
+                type="button"
+                onClick={copyCloudDriveLink}
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Copy className="size-4" aria-hidden="true" />
+                复制链接
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -113,6 +113,7 @@ export type PatternInput = {
     images: string[]
     fileUrl?: string | null
     fileName?: string | null
+    cloudDriveUrl?: string | null
     note?: string | null
 }
 
@@ -137,7 +138,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
 
     const rows = await queryWithRetry(() =>
         sqlDb`
-            INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, note)
+            INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, cloud_drive_url, note)
             VALUES (
                 ${input.name.trim()},
                 ${input.studio.trim()},
@@ -146,6 +147,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
                 ${imageKeys}::text[],
                 ${input.fileUrl || null},
                 ${input.fileName?.trim() || null},
+                ${input.cloudDriveUrl?.trim() || null},
                 ${input.note?.trim() || null}
             )
             RETURNING id
@@ -208,13 +210,14 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
             images,
             file_url: input.fileUrl || null,
             file_name: input.fileName?.trim() || null,
+            cloud_drive_url: input.cloudDriveUrl?.trim() || null,
             note: input.note?.trim() || null,
         }
     })
     const inserted = await queryWithRetry(() =>
         sqlDb`
             WITH inserted AS (
-                INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, note)
+                INSERT INTO patterns (name, studio, categories, thumbnail_url, images, file_url, file_name, cloud_drive_url, note)
                 SELECT
                     item.name,
                     item.studio,
@@ -223,6 +226,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
                     item.images,
                     item.file_url,
                     item.file_name,
+                    item.cloud_drive_url,
                     item.note
                 FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb) AS item(
                     name text,
@@ -232,6 +236,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
                     images text[],
                     file_url text,
                     file_name text,
+                    cloud_drive_url text,
                     note text
                 )
                 RETURNING id
@@ -270,6 +275,7 @@ export async function updatePattern(id: number, input: PatternInput) {
                 images = ${imageKeys}::text[],
                 file_url = ${input.fileUrl || null},
                 file_name = ${input.fileName?.trim() || null},
+                cloud_drive_url = ${input.cloudDriveUrl?.trim() || null},
                 note = ${input.note?.trim() || null},
                 updated_at = NOW()
             WHERE id = ${id}

@@ -29,6 +29,7 @@ const TEMPLATE_HEADERS = [
   "图4",
   "图5",
   "电子文件名",
+  "网盘链接",
   "备注",
 ] as const
 
@@ -43,6 +44,7 @@ const TEMPLATE_EXAMPLE = [
   "",
   "",
   "shirt.pdf",
+  "",
   "春夏新款",
 ]
 
@@ -60,10 +62,10 @@ function createExcelTemplate() {
     const ref = `${String.fromCharCode(65 + i)}2`
     return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`
   }).join("")
-  const widths = [24, 20, 22, 16, 16, 16, 16, 16, 24, 28]
+  const widths = [24, 20, 22, 16, 16, 16, 16, 16, 24, 36, 28]
     .map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`)
     .join("")
-  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="72"/><cols>${widths}</cols><sheetData><row r="1" ht="25" customHeight="1">${headerCells}</row><row r="2">${exampleCells}</row></sheetData><autoFilter ref="A1:J2"/></worksheet>`
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="72"/><cols>${widths}</cols><sheetData><row r="1" ht="25" customHeight="1">${headerCells}</row><row r="2">${exampleCells}</row></sheetData><autoFilter ref="A1:K2"/></worksheet>`
   return zipSync({
     "[Content_Types].xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`),
     "_rels/.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`),
@@ -237,6 +239,7 @@ async function readExcel(file: File) {
         categories: splitTags(get("品类标签")),
         imageFiles: imageFiles.get(rowNumber) ?? Array<File | null>(5).fill(null),
         fileName: get("电子文件名"),
+        cloudDriveUrl: get("网盘链接"),
         note: get("备注"),
         errors: [],
       }
@@ -260,6 +263,7 @@ type ParsedRow = {
   /** 在预览表图1-图5单元格中直接选择的图片。 */
   imageFiles: (File | null)[]
   fileName: string
+  cloudDriveUrl: string
   note: string
   errors: string[]
 }
@@ -446,6 +450,7 @@ export function BatchUpload({
           images: imageResults.map((result) => (result as { key: string }).key),
           fileUrl: fileResult ? (fileResult as { key: string }).key : null,
           fileName: row.fileName || null,
+          cloudDriveUrl: row.cloudDriveUrl || null,
           note: row.note || null,
         })
       }
@@ -488,7 +493,7 @@ export function BatchUpload({
               1. 下载并填写模版
             </h3>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              下载 Excel 模版，按列填写纸样信息。把图片插入图1-图5对应单元格（第一张图作为主图），品类标签用分号
+              下载 Excel 模版，按列填写纸样信息（网盘链接可留空）。把图片插入图1-图5对应单元格（第一张图作为主图），品类标签用分号
               <span className="mx-0.5 rounded bg-muted px-1">;</span>
               分隔。支持浮在单元格上方的图片，也支持 Excel/WPS 的“置于单元格内”图片；请确保图片位于正确的图1-图5列和对应数据行中。
             </p>
@@ -588,6 +593,7 @@ export function BatchUpload({
                           图{i + 1}{i === 0 ? "（主图）" : ""}
                         </th>
                       ))}
+                      <th className="w-28 px-3 py-2 text-left font-medium">网盘链接</th>
                       <th className="px-3 py-2 text-left font-medium">说明</th>
                     </tr>
                   </thead>
@@ -623,6 +629,14 @@ export function BatchUpload({
                               )}
                             </td>
                           ))}
+                          <td
+                            className="max-w-28 px-3 py-2 text-muted-foreground"
+                            title={r.cloudDriveUrl || undefined}
+                          >
+                            {r.cloudDriveUrl
+                              ? `${r.cloudDriveUrl.slice(0, 10)}${r.cloudDriveUrl.length > 10 ? "…" : ""}`
+                              : "—"}
+                          </td>
                           <td className="px-3 py-2">
                             {ok ? (
                               <span className="text-muted-foreground">就绪</span>

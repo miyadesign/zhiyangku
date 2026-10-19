@@ -62,6 +62,7 @@ const getAllPatternsRawCached = unstable_cache(
                 imageKeys: r.images ?? [],
                 fileKey: r.fileUrl ?? null,
                 fileName: r.fileName ?? null,
+                cloudDriveUrl: r.cloudDriveUrl ?? null,
                 note: r.note,
             }))
         })
@@ -83,6 +84,7 @@ export async function getAllPatterns(): Promise<GalleryPattern[]> {
             thumbnailUrl: imageUrls[0] ?? "",
             fileUrl: r.fileKey ? toAccessibleUrl(r.fileKey) : null,
             fileName: r.fileName,
+            cloudDriveUrl: r.cloudDriveUrl,
             note: r.note,
         }
     })

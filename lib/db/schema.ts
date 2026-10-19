@@ -75,6 +75,7 @@ export const patterns = pgTable("patterns", {
     // 电子版纸样文件（pdf / zip / plt 等），非图片，用于下载
     fileUrl: text("file_url"),
     fileName: text("file_name"),
+    cloudDriveUrl: text("cloud_drive_url"),
     note: text("note"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
