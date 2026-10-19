@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { signPutUrl } from "@/lib/oss-sign"
+import { isAdmin } from "@/lib/admin-auth"
 
 // 设计：客户端把文件以 application/octet-stream 直接 POST 到这里（不要 multipart）。
 //
@@ -14,6 +15,9 @@ export const runtime = "nodejs"
 export async function POST(request: NextRequest) {
     const tStart = Date.now()
     try {
+        if (!(await isAdmin())) {
+            return NextResponse.json({ error: "需要管理员登录后才能上传" }, { status: 401 })
+        }
         const rawName = request.headers.get("x-filename")
         const filename = rawName ? decodeURIComponent(rawName) : "upload"
         const isFiles = request.headers.get("x-folder") === "files"

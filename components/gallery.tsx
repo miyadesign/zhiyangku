@@ -1,8 +1,9 @@
 "use client"
 
-import { Heart, Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Heart, LogIn, LogOut, Plus, Ruler, Search, Tags, Upload, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
+import { loginAdmin, logoutAdmin } from "@/app/actions/admin"
 import { createPattern, createPatternsBatch, deletePattern, getGallerySnapshot, updatePattern } from "@/app/actions/patterns"
 import { PatternCard } from "@/components/pattern-card"
 import { PatternModal } from "@/components/pattern-modal"
@@ -10,6 +11,8 @@ import { PatternEditor, type EditablePattern } from "@/components/pattern-editor
 import { BatchUpload, type BatchUploadItem } from "@/components/batch-upload"
 import { TagManager, type AdminTag } from "@/components/tag-manager"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -38,9 +41,11 @@ function downloadPattern(pattern: GalleryPattern) {
 export function Gallery({
   patterns: initialPatterns,
   tags,
+  initialIsAdmin,
 }: {
   patterns: GalleryPattern[]
   tags: AdminTag[]
+  initialIsAdmin: boolean
 }) {
   const [studio, setStudio] = useState<string>("all")
   const [categories, setCategories] = useState<string[]>([])
@@ -48,6 +53,11 @@ export function Gallery({
   const [active, setActive] = useState<GalleryPattern | null>(null)
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(() => new Set())
   const [favoritesLoaded, setFavoritesLoaded] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(initialIsAdmin)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [loginEmail, setLoginEmail] = useState("")
+  const [loginPassword, setLoginPassword] = useState("")
+  const [authBusy, setAuthBusy] = useState(false)
 
   // 收藏保存在当前浏览器中；与纸样数据分开，避免需要账号登录才能使用。
   useEffect(() => {
@@ -95,6 +105,40 @@ export function Gallery({
   const [batchOpen, setBatchOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GalleryPattern | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  async function handleAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAuthBusy(true)
+    try {
+      await loginAdmin(loginEmail, loginPassword)
+      setIsAdmin(true)
+      setLoginPassword("")
+      setLoginOpen(false)
+      toast.success("管理员登录成功")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "登录失败")
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  async function handleAdminLogout() {
+    setAuthBusy(true)
+    try {
+      await logoutAdmin()
+      setIsAdmin(false)
+      setEditorOpen(false)
+      setTagManagerOpen(false)
+      setBatchOpen(false)
+      setDeleteTarget(null)
+      setEditing(null)
+      toast.success("已退出管理员登录")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "退出失败")
+    } finally {
+      setAuthBusy(false)
+    }
+  }
 
   // Keep other devices reasonably fresh without requiring a manual reload.
   // Use a safely caught Server Action instead of router.refresh(), so a transient
@@ -405,26 +449,31 @@ export function Gallery({
             </div>
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => setTagManagerOpen(true)}
-              >
-                <Tags className="mr-1.5 size-4" />
-                标签管理
-              </Button>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => setBatchOpen(true)}
-              >
-                <Upload className="mr-1.5 size-4" />
-                批量上传
-              </Button>
-              <Button size="default" onClick={openCreate}>
-                <Plus className="mr-1.5 size-4" />
-                新增纸样
-              </Button>
+              {isAdmin ? (
+                <>
+                  <Button variant="outline" size="default" onClick={() => setTagManagerOpen(true)}>
+                    <Tags className="mr-1.5 size-4" />
+                    标签管理
+                  </Button>
+                  <Button variant="outline" size="default" onClick={() => setBatchOpen(true)}>
+                    <Upload className="mr-1.5 size-4" />
+                    批量上传
+                  </Button>
+                  <Button size="default" onClick={openCreate}>
+                    <Plus className="mr-1.5 size-4" />
+                    新增纸样
+                  </Button>
+                  <Button variant="outline" size="default" onClick={handleAdminLogout} disabled={authBusy}>
+                    <LogOut className="mr-1.5 size-4" />
+                    退出管理
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="default" onClick={() => setLoginOpen(true)}>
+                  <LogIn className="mr-1.5 size-4" />
+                  管理员登录
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -530,8 +579,8 @@ export function Gallery({
                   favorite={favoriteIds.has(pattern.id)}
                   onToggleFavorite={toggleFavorite}
                   onOpen={setActive}
-                  onEdit={openEdit}
-                  onDelete={setDeleteTarget}
+                  onEdit={isAdmin ? openEdit : undefined}
+                  onDelete={isAdmin ? setDeleteTarget : undefined}
                 />
               ))}
             </div>
@@ -551,7 +600,7 @@ export function Gallery({
                   ? "点击右上角「新增纸样」上传第一个纸样"
                   : "尝试调整工作室、品类或搜索关键词"}
               </p>
-              {patterns.length === 0 ? (
+              {patterns.length === 0 && isAdmin ? (
                 <Button className="mt-2" size="sm" onClick={openCreate}>
                   <Plus className="mr-1.5 size-4" />
                   新增纸样
@@ -577,17 +626,17 @@ export function Gallery({
         tagColors={tagColors}
         onClose={() => setActive(null)}
         onDownload={downloadPattern}
-        onEdit={(pattern) => {
+        onEdit={isAdmin ? (pattern) => {
           setActive(null)
           openEdit(pattern)
-        }}
-        onDelete={(pattern) => {
+        } : undefined}
+        onDelete={isAdmin ? (pattern) => {
           setActive(null)
           setDeleteTarget(pattern)
-        }}
+        } : undefined}
       />
 
-      {editorOpen && (
+      {isAdmin && editorOpen && (
         <PatternEditor
           key={editing?.id ?? "new"}
           open={editorOpen}
@@ -599,20 +648,59 @@ export function Gallery({
         />
       )}
 
-      <TagManager
-        open={tagManagerOpen}
-        onOpenChange={setTagManagerOpen}
-        tags={currentTags}
-      />
+      {isAdmin && (
+        <TagManager
+          open={tagManagerOpen}
+          onOpenChange={setTagManagerOpen}
+          tags={currentTags}
+        />
+      )}
 
-      <BatchUpload
-        open={batchOpen}
-        onOpenChange={setBatchOpen}
-        onDone={handleBatchSaved}
-      />
+      {isAdmin && (
+        <BatchUpload
+          open={batchOpen}
+          onOpenChange={setBatchOpen}
+          onDone={handleBatchSaved}
+        />
+      )}
+
+      <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">管理员登录</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAdminLogin} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="admin-email">管理员邮箱</Label>
+              <Input
+                id="admin-email"
+                type="email"
+                autoComplete="username"
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="admin-password">管理员密码</Label>
+              <Input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={authBusy}>
+              {authBusy ? "登录中…" : "登录"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
-        open={!!deleteTarget}
+        open={isAdmin && !!deleteTarget}
         onOpenChange={(v) => !v && setDeleteTarget(null)}
       >
         <DialogContent className="sm:max-w-sm">

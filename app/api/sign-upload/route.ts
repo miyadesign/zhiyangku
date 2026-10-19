@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { signPutUrl, ensureCors } from "@/lib/oss"
+import { isAdmin } from "@/lib/admin-auth"
 
 /**
  * 签发 OSS 直传 PUT URL。
@@ -39,6 +40,9 @@ export async function OPTIONS() {
 
 export async function GET(request: NextRequest) {
     try {
+        if (!(await isAdmin())) {
+            return NextResponse.json({ error: "需要管理员登录后才能上传" }, { status: 401 })
+        }
         const folder = request.nextUrl.searchParams.get("folder")
         const filename = request.nextUrl.searchParams.get("filename") || "upload"
         if (folder !== "images" && folder !== "files") {

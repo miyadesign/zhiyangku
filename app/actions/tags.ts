@@ -4,8 +4,10 @@ import { and, eq, ne, sql } from "drizzle-orm"
 import { revalidatePath, updateTag as invalidateTag } from "next/cache"
 import { queryDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
+import { requireAdmin } from "@/lib/admin-auth"
 
 export async function createTag(name: string, color: string) {
+  await requireAdmin()
   const trimmed = name.trim()
   if (!trimmed) throw new Error("请填写标签名称")
 
@@ -33,6 +35,7 @@ export async function updateTag(
   id: number,
   input: { name: string; color: string },
 ) {
+  await requireAdmin()
   const trimmed = input.name.trim()
   if (!trimmed) throw new Error("请填写标签名称")
 
@@ -69,6 +72,7 @@ export async function updateTag(
 }
 
 export async function deleteTag(id: number) {
+  await requireAdmin()
   await queryDb(async (db) => {
     const [current] = await db.select().from(tags).where(eq(tags.id, id))
     if (!current) return

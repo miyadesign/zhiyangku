@@ -8,6 +8,7 @@ import { patterns, tags } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
 import { getAllPatterns, getAllTags } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
+import { requireAdmin } from "@/lib/admin-auth"
 
 function toSignedUrl(key: string | null): string {
     if (!key) return ""
@@ -136,6 +137,7 @@ export type CreatePatternResult = {
 
 /** 用 raw SQL 插入纸样，绕开 Drizzle 0.45.x 在 INSERT 多字段时的 param 顺序错位问题。 */
 export async function createPattern(input: PatternInput): Promise<CreatePatternResult> {
+    await requireAdmin()
     if (!input.name?.trim()) throw new Error("请填写纸样名称")
     if (!input.studio?.trim()) throw new Error("请选择或填写工作室")
     const imageKeys = cleanImageKeys(input.images)
@@ -172,6 +174,7 @@ export async function createPattern(input: PatternInput): Promise<CreatePatternR
 
 /** 单条 SQL 原子插入整批纸样，避免逐条写入超时后只保存一部分。 */
 export async function createPatternsBatch(inputs: PatternInput[]) {
+    await requireAdmin()
     const valid = inputs.filter(
         (i) => i.name?.trim() && i.studio?.trim() && cleanImageKeys(i.images).length > 0,
     )
@@ -261,6 +264,7 @@ export async function createPatternsBatch(inputs: PatternInput[]) {
 
 /** Update 同上 */
 export async function updatePattern(id: number, input: PatternInput) {
+    await requireAdmin()
     if (!input.name?.trim()) throw new Error("请填写纸样名称")
     if (!input.studio?.trim()) throw new Error("请选择或填写工作室")
     const imageKeys = cleanImageKeys(input.images)
@@ -300,6 +304,7 @@ export async function updatePattern(id: number, input: PatternInput) {
 }
 
 export async function deletePattern(id: number) {
+    await requireAdmin()
     const row = await queryDb(async (db) => {
         const [r] = await db.select().from(patterns).where(eq(patterns.id, id))
         return r
