@@ -59,6 +59,7 @@ export function Gallery({
   const [loginEmail, setLoginEmail] = useState("")
   const [loginPassword, setLoginPassword] = useState("")
   const [authBusy, setAuthBusy] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   // 收藏保存在当前浏览器中；与纸样数据分开，避免需要账号登录才能使用。
   useEffect(() => {
@@ -421,7 +422,14 @@ export function Gallery({
             {/* 移动端第一行：logo + 搜索框同行。PC：只显示 logo。 */}
             <div className="flex items-center gap-2 md:contents">
               <div className="flex shrink-0 items-center gap-2">
-                <Ruler className="size-5 text-primary" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(true)}
+                  aria-label="打开工作室导航"
+                  className="inline-flex size-8 items-center justify-center rounded-md text-primary hover:bg-muted md:pointer-events-none"
+                >
+                  <Ruler className="size-5" aria-hidden="true" />
+                </button>
                 <span className="font-serif text-xl font-semibold tracking-tight text-foreground">
                   纸样库
                 </span>
@@ -453,28 +461,28 @@ export function Gallery({
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 md:min-w-0 md:flex-1">
               {isAdmin ? (
                 <>
-                  <Button variant="outline" size="default" onClick={() => setTagManagerOpen(true)}>
+                  <Button className="hidden md:inline-flex" variant="outline" size="default" onClick={() => setTagManagerOpen(true)}>
                     <Tags className="mr-1.5 size-4" />
                     标签管理
                   </Button>
-                  <Button variant="outline" size="default" onClick={() => setBatchOpen(true)}>
+                  <Button className="hidden md:inline-flex" variant="outline" size="default" onClick={() => setBatchOpen(true)}>
                     <Upload className="mr-1.5 size-4" />
                     批量上传
-                  </Button>
-                  <Button size="default" onClick={openCreate}>
-                    <Plus className="mr-1.5 size-4" />
-                    新增纸样
                   </Button>
                   <Link href="/table" className={cn(buttonVariants({ variant: "outline" }), "hidden md:inline-flex")}>
                     <Table2 className="mr-1.5 size-4" />
                     在线表格
                   </Link>
-                  <Button variant="outline" size="default" onClick={handleAdminLogout} disabled={authBusy}>
+                  <Button size="default" onClick={openCreate}>
+                    <Plus className="mr-1.5 size-4" />
+                    新增纸样
+                  </Button>
+                  <Button className="hidden md:ml-auto md:inline-flex" variant="outline" size="default" onClick={handleAdminLogout} disabled={authBusy}>
                     <LogOut className="mr-1.5 size-4" />
-                    退出管理
+                    退出
                   </Button>
                 </>
               ) : (
@@ -488,17 +496,38 @@ export function Gallery({
         </div>
       </header>
 
+      {mobileNavOpen && (
+        <button
+          type="button"
+          aria-label="关闭工作室导航"
+          onClick={() => setMobileNavOpen(false)}
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+        />
+      )}
+
       <div className="mx-auto flex max-w-[1400px] flex-col md:flex-row">
-        {/* 左侧工作室导航 —— PC 端固定 */}
-        <aside className="shrink-0 border-b border-border px-4 py-4 md:sticky md:top-[85px] md:h-[calc(100vh-85px)] md:w-56 md:self-start md:overflow-y-auto md:border-b-0 md:border-r md:px-5 md:py-6">
-          <nav className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+        {/* 工作室导航：桌面端固定，移动端从左侧滑出 */}
+        <aside className={cn(
+          "fixed inset-y-0 left-0 z-50 h-full w-72 max-w-[85vw] overflow-y-auto border-r border-border bg-background px-4 py-4 shadow-xl transition-transform md:sticky md:top-[85px] md:z-auto md:h-[calc(100vh-85px)] md:w-56 md:shrink-0 md:self-start md:overflow-y-auto md:border-r md:px-5 md:py-6 md:shadow-none",
+          mobileNavOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        )}>
+          <div className="mb-3 flex items-center justify-between md:hidden">
+            <span className="font-serif text-lg font-semibold">工作室导航</span>
+            <button type="button" onClick={() => setMobileNavOpen(false)} aria-label="关闭导航" className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted">
+              <X className="size-4" />
+            </button>
+          </div>
+          <nav className="flex flex-col gap-2">
             {studioItems.map((item) => {
               const isActive = studio === item.key
               return (
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setStudio(item.key)}
+                  onClick={() => {
+                    setStudio(item.key)
+                    setMobileNavOpen(false)
+                  }}
                   aria-pressed={isActive}
                   className={cn(
                     "flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors md:w-full",
@@ -525,6 +554,22 @@ export function Gallery({
               )
             })}
           </nav>
+          {isAdmin && (
+            <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4 md:hidden">
+              <Button variant="outline" className="justify-start" onClick={() => {
+                setMobileNavOpen(false)
+                setTagManagerOpen(true)
+              }}>
+                <Tags className="mr-2 size-4" />标签管理
+              </Button>
+              <Button variant="outline" className="justify-start" onClick={() => {
+                setMobileNavOpen(false)
+                void handleAdminLogout()
+              }} disabled={authBusy}>
+                <LogOut className="mr-2 size-4" />退出
+              </Button>
+            </div>
+          )}
         </aside>
 
         {/* 主内容 */}

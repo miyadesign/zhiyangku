@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { createPattern, deletePatternsBatch, getGallerySnapshot, updatePatternsBatch, type SpreadsheetPatternUpdate } from "@/app/actions/patterns"
 import { MultiImageUpload } from "@/components/multi-image-upload"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { DEFAULT_STUDIOS } from "@/lib/constants"
@@ -84,6 +85,7 @@ export function PatternSpreadsheet({
   const [savingIds, setSavingIds] = useState<Set<number>>(() => new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [studioNavCollapsed, setStudioNavCollapsed] = useState(false)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null)
 
   const savedById = useMemo(() => new Map(savedRows.map((row) => [row.id, row])), [savedRows])
   const dirtyRows = useMemo(
@@ -197,13 +199,15 @@ export function PatternSpreadsheet({
     }
   }
 
-  async function deleteRows(ids: number[]) {
+  function deleteRows(ids: number[]) {
     const uniqueIds = [...new Set(ids)]
     if (uniqueIds.length === 0 || bulkBusy) return
-    const message = uniqueIds.length === 1
-      ? "确定删除这条纸样信息吗？"
-      : `确定删除选中的 ${uniqueIds.length} 条纸样信息吗？`
-    if (!window.confirm(message)) return
+    setPendingDeleteIds(uniqueIds)
+  }
+
+  async function confirmDeleteRows() {
+    const uniqueIds = pendingDeleteIds
+    if (!uniqueIds?.length || bulkBusy) return
     setBulkBusy(true)
     try {
       const drafts = uniqueIds.filter((id) => id < 0)
@@ -212,6 +216,7 @@ export function PatternSpreadsheet({
       setRows((current) => current.filter((row) => !deleted.has(row.id)))
       setSavedRows((current) => current.filter((row) => !deleted.has(row.id)))
       setSelectedIds((current) => new Set([...current].filter((id) => !deleted.has(id))))
+      setPendingDeleteIds(null)
       toast.success(`已删除 ${drafts.length + deletedIds.length} 条纸样`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "删除失败")
@@ -232,7 +237,6 @@ export function PatternSpreadsheet({
               <h1 className="font-serif text-lg font-semibold">在线表格</h1>
             </div>
           </div>
-          <Link href="/" className={buttonVariants({ variant: "outline" })}>返回图库</Link>
         </div>
       </header>
 
@@ -329,7 +333,7 @@ export function PatternSpreadsheet({
                   <th className="w-32 px-3 py-3">标签</th>
                   <th className="w-56 px-3 py-3">图片</th>
                   <th className="w-56 px-3 py-3">网盘链接</th>
-                  <th className="w-28 px-3 py-3">备注</th>
+                  <th className="w-14 px-3 py-3">备注</th>
                   <th className="sticky right-0 z-20 w-28 bg-muted px-3 py-3 text-right">操作</th>
                 </tr>
               </thead>
@@ -374,7 +378,7 @@ export function PatternSpreadsheet({
                         />
                       </td>
                       <td className="px-2 py-2 align-middle"><Input value={row.cloudDriveUrl} onChange={(event) => changeRow(row.id, { cloudDriveUrl: event.target.value })} aria-label="网盘链接" /></td>
-                      <td className="px-2 py-2 align-middle"><Textarea value={row.note} onChange={(event) => changeRow(row.id, { note: event.target.value })} aria-label="备注" className="min-h-8 resize-y" /></td>
+                      <td className="w-14 max-w-14 px-2 py-2 align-middle"><Textarea value={row.note} onChange={(event) => changeRow(row.id, { note: event.target.value })} aria-label="备注" className="min-h-8 resize-y" /></td>
                       <td className={cn("sticky right-0 z-10 w-28 px-2 py-2 align-middle", dirty ? "bg-amber-50/50" : "bg-card")}>
                         <div className="flex items-center justify-end gap-1">
                           <Button size="sm" aria-label={`保存${row.name}`} title="保存此行" disabled={!dirty || bulkBusy} onClick={() => void saveRows([row])} className="bg-primary text-white hover:bg-primary/90">
@@ -408,6 +412,22 @@ export function PatternSpreadsheet({
         </main>
       </div>
 
+      <Dialog open={pendingDeleteIds !== null} onOpenChange={(open) => !open && !bulkBusy && setPendingDeleteIds(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif">删除纸样</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            确定删除{pendingDeleteIds?.length === 1 ? "这条" : `选中的 ${pendingDeleteIds?.length ?? 0} 条`}纸样信息吗？此操作不可撤销。
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDeleteIds(null)} disabled={bulkBusy}>取消</Button>
+            <Button variant="destructive" onClick={() => void confirmDeleteRows()} disabled={bulkBusy}>
+              {bulkBusy ? "删除中…" : "确认删除"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
