@@ -1,5 +1,5 @@
 import "server-only"
-import { asc, desc } from "drizzle-orm"
+import { asc, count, desc, max } from "drizzle-orm"
 import { unstable_cache } from "next/cache"
 import { queryDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
@@ -118,6 +118,34 @@ export type TagRecord = {
 
 export async function getAllTags(): Promise<TagRecord[]> {
     return getAllTagsCached()
+}
+
+/**
+ * Cheap change detector for background sync. It reads only a single aggregate
+ * row from patterns and the small tag list; clients fetch the full gallery only
+ * when this revision changes.
+ */
+export async function getGalleryRevision(): Promise<string> {
+    const [patternSummary, tagRows] = await Promise.all([
+        queryDb((db) => db.select({
+            total: count(),
+            maxId: max(patterns.id),
+            lastUpdated: max(patterns.updatedAt),
+        }).from(patterns)),
+        queryDb((db) => db.select({
+            id: tags.id,
+            name: tags.name,
+            color: tags.color,
+            sortOrder: tags.sortOrder,
+        }).from(tags).orderBy(asc(tags.id))),
+    ])
+    const summary = patternSummary[0]
+    return JSON.stringify([
+        summary?.total ?? 0,
+        summary?.maxId ?? null,
+        summary?.lastUpdated?.toISOString() ?? null,
+        tagRows,
+    ])
 }
 
 export async function getTagInfos(): Promise<TagInfo[]> {

@@ -1,10 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Save, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import { createPattern, deletePatternsBatch, getGallerySnapshot, updatePatternsBatch, type SpreadsheetPatternUpdate } from "@/app/actions/patterns"
+import { createPattern, deletePatternsBatch, getGalleryRevisionAction, getGallerySnapshot, updatePatternsBatch, type SpreadsheetPatternUpdate } from "@/app/actions/patterns"
 import { MultiImageUpload } from "@/components/multi-image-upload"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -71,9 +71,11 @@ function inputTags(value: string) {
 export function PatternSpreadsheet({
   initialPatterns,
   initialTags,
+  initialRevision,
 }: {
   initialPatterns: GalleryPattern[]
   initialTags: TagRecord[]
+  initialRevision: string
 }) {
   const [rows, setRows] = useState(() => initialPatterns.map(toRow))
   const [savedRows, setSavedRows] = useState(() => initialPatterns.map(toRow))
@@ -87,6 +89,7 @@ export function PatternSpreadsheet({
   const [bulkBusy, setBulkBusy] = useState(false)
   const [studioNavCollapsed, setStudioNavCollapsed] = useState(false)
   const [pendingDeleteIds, setPendingDeleteIds] = useState<number[] | null>(null)
+  const revisionRef = useRef(initialRevision)
 
   const savedById = useMemo(() => new Map(savedRows.map((row) => [row.id, row])), [savedRows])
   const dirtyRows = useMemo(
@@ -115,14 +118,18 @@ export function PatternSpreadsheet({
   useEffect(() => setPage(1), [studio, pageSize, searchQuery])
   useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount])
 
-  // 其他设备的改动会定时同步；本机有未保存内容时保留草稿，不覆盖输入。
+  // 先轻量检查数据版本；只有其他设备确实改动时，才下载完整列表。
+  // 本机有未保存内容时保留草稿，不覆盖输入。
   useEffect(() => {
     let disposed = false
     const refresh = async () => {
       if (document.hidden || dirtyRows.length > 0 || bulkBusy) return
       try {
+        const revision = await getGalleryRevisionAction()
+        if (disposed || revision === revisionRef.current) return
         const snapshot = await getGallerySnapshot()
         if (disposed) return
+        revisionRef.current = revision
         const nextRows = snapshot.patterns.map(toRow)
         setRows(nextRows)
         setSavedRows(nextRows)
@@ -131,7 +138,7 @@ export function PatternSpreadsheet({
         console.warn("[spreadsheet] Background refresh failed", error)
       }
     }
-    const timer = window.setInterval(refresh, 15_000)
+    const timer = window.setInterval(refresh, 30_000)
     document.addEventListener("visibilitychange", refresh)
     return () => {
       disposed = true

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { loginAdmin, logoutAdmin } from "@/app/actions/admin"
-import { createPattern, createPatternsBatch, deletePattern, getGallerySnapshot, updatePattern } from "@/app/actions/patterns"
+import { createPattern, createPatternsBatch, deletePattern, getGalleryRevisionAction, getGallerySnapshot, updatePattern } from "@/app/actions/patterns"
 import { PatternCard } from "@/components/pattern-card"
 import { PatternModal } from "@/components/pattern-modal"
 import { PatternEditor, type EditablePattern } from "@/components/pattern-editor"
@@ -43,10 +43,12 @@ export function Gallery({
   patterns: initialPatterns,
   tags,
   initialIsAdmin,
+  initialRevision,
 }: {
   patterns: GalleryPattern[]
   tags: AdminTag[]
   initialIsAdmin: boolean
+  initialRevision: string
 }) {
   const [studio, setStudio] = useState<string>("all")
   const [categories, setCategories] = useState<string[]>([])
@@ -96,6 +98,10 @@ export function Gallery({
   // 后台 fire-and-forget 同步到 server（unstable_cache 命中时刷新几乎无感）。
   const [patterns, setPatterns] = useState<GalleryPattern[]>(initialPatterns)
   const [currentTags, setCurrentTags] = useState<AdminTag[]>(tags)
+  const revisionRef = useRef(initialRevision)
+  useEffect(() => {
+    revisionRef.current = initialRevision
+  }, [initialRevision])
   useEffect(() => {
     setPatterns(initialPatterns)
   }, [initialPatterns])
@@ -149,9 +155,8 @@ export function Gallery({
     }
   }
 
-  // Keep other devices reasonably fresh without requiring a manual reload.
-  // Use a safely caught Server Action instead of router.refresh(), so a transient
-  // database error cannot replace the whole gallery with the route error boundary.
+  // Check a compact data revision first; only fetch the full gallery after a change.
+  // Use safely caught Server Actions so a transient read failure keeps the last good view.
   const snapshotRequestInFlight = useRef(false)
   useEffect(() => {
     if (active || editorOpen || tagManagerOpen || batchOpen || deleteTarget) return
@@ -160,8 +165,11 @@ export function Gallery({
       if (document.hidden || snapshotRequestInFlight.current) return
       snapshotRequestInFlight.current = true
       try {
+        const revision = await getGalleryRevisionAction()
+        if (disposed || revision === revisionRef.current) return
         const snapshot = await getGallerySnapshot()
         if (disposed) return
+        revisionRef.current = revision
         setPatterns(snapshot.patterns)
         setCurrentTags(snapshot.tags)
       } catch (error) {
@@ -171,7 +179,7 @@ export function Gallery({
         snapshotRequestInFlight.current = false
       }
     }
-    const timer = window.setInterval(refreshIfVisible, 15_000)
+    const timer = window.setInterval(refreshIfVisible, 30_000)
     document.addEventListener("visibilitychange", refreshIfVisible)
     return () => {
       disposed = true

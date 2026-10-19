@@ -6,7 +6,7 @@ import { updateTag } from "next/cache"
 import { queryDb, sqlDb } from "@/lib/db"
 import { patterns, tags } from "@/lib/db/schema"
 import { deleteFromOss, signUrl } from "@/lib/oss"
-import { getAllPatterns, getAllTags } from "@/lib/queries"
+import { getAllPatterns, getAllTags, getGalleryRevision } from "@/lib/queries"
 import { queryWithRetry } from "@/lib/db/retry"
 import { requireAdmin } from "@/lib/admin-auth"
 
@@ -126,6 +126,11 @@ export async function listPatterns() {
 export async function getGallerySnapshot() {
     const [patterns, tags] = await Promise.all([getAllPatterns(), getAllTags()])
     return { patterns, tags }
+}
+
+/** Lightweight polling endpoint: avoid serializing every pattern every interval. */
+export async function getGalleryRevisionAction() {
+    return getGalleryRevision()
 }
 
 export type CreatePatternResult = {
