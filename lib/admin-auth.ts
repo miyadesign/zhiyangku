@@ -8,8 +8,9 @@ const SESSION_SECONDS = 7 * 24 * 60 * 60
 
 function getSigningSecret() {
   const secret = process.env.ADMIN_SESSION_SECRET
-  if (!secret || secret.length < 32) {
-    throw new Error("管理员登录未配置：请设置至少 32 个字符的 ADMIN_SESSION_SECRET")
+  const minimumLength = process.env.NODE_ENV === "production" ? 32 : 24
+  if (!secret || secret.length < minimumLength) {
+    throw new Error(`管理员登录未配置：${process.env.NODE_ENV === "production" ? "线上" : "本地开发"}请设置至少 ${minimumLength} 个字符的 ADMIN_SESSION_SECRET`)
   }
   return secret
 }
@@ -95,8 +96,9 @@ export async function requireAdmin() {
 
 export async function verifyAdminCredentials(email: string, password: string) {
   const expectedPassword = process.env.ADMIN_PASSWORD
-  if (!expectedPassword || expectedPassword.length < 16 || expectedPassword.length > 128) {
-    throw new Error("管理员登录未配置：请在 Cloudflare 设置 16–128 位的 ADMIN_PASSWORD")
+  const minimumLength = process.env.NODE_ENV === "production" ? 16 : 8
+  if (!expectedPassword || expectedPassword.length < minimumLength || expectedPassword.length > 128) {
+    throw new Error(`管理员登录未配置：${process.env.NODE_ENV === "production" ? "线上" : "本地开发"}请设置 ${minimumLength}–128 位的 ADMIN_PASSWORD`)
   }
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase()

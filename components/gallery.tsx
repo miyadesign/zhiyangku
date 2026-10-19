@@ -110,7 +110,11 @@ export function Gallery({
     event.preventDefault()
     setAuthBusy(true)
     try {
-      await loginAdmin(loginEmail, loginPassword)
+      const result = await loginAdmin(loginEmail, loginPassword)
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
       setIsAdmin(true)
       setLoginPassword("")
       setLoginOpen(false)
