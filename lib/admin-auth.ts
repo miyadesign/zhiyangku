@@ -37,8 +37,12 @@ function decodeBase64Url(value: string) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
 
-function sessionPayload(expiresAt: number) {
-  return `${ADMIN_EMAIL}:${expiresAt}`
+async function sessionPayload(expiresAt: number) {
+  const password = process.env.ADMIN_PASSWORD
+  if (!password) throw new Error("管理员登录未配置：缺少 ADMIN_PASSWORD")
+  const passwordDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password))
+  const passwordVersion = encodeBase64Url(new Uint8Array(passwordDigest))
+  return `${ADMIN_EMAIL}:${expiresAt}:${passwordVersion}`
 }
 
 export async function createAdminSession() {
@@ -46,7 +50,7 @@ export async function createAdminSession() {
   const signature = await crypto.subtle.sign(
     "HMAC",
     await getHmacKey(),
-    new TextEncoder().encode(sessionPayload(expiresAt)),
+    new TextEncoder().encode(await sessionPayload(expiresAt)),
   )
   const cookieStore = await cookies()
   cookieStore.set(COOKIE_NAME, `${expiresAt}.${encodeBase64Url(new Uint8Array(signature))}`, {
@@ -81,7 +85,7 @@ export async function isAdmin() {
       "HMAC",
       await getHmacKey(),
       decodeBase64Url(signatureText),
-      new TextEncoder().encode(sessionPayload(expiresAt)),
+      new TextEncoder().encode(await sessionPayload(expiresAt)),
     )
   } catch {
     return false
