@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Save, Trash2 } from "lucide-react"
+import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Save, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createPattern, deletePatternsBatch, getGallerySnapshot, updatePatternsBatch, type SpreadsheetPatternUpdate } from "@/app/actions/patterns"
 import { MultiImageUpload } from "@/components/multi-image-upload"
@@ -79,6 +79,7 @@ export function PatternSpreadsheet({
   const [savedRows, setSavedRows] = useState(() => initialPatterns.map(toRow))
   const [tags, setTags] = useState(initialTags)
   const [studio, setStudio] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
@@ -97,16 +98,21 @@ export function PatternSpreadsheet({
     rows.forEach((row) => values.add(row.studio))
     return [...values].filter(Boolean)
   }, [rows])
-  const filteredRows = useMemo(
-    () => studio === "all" ? rows : rows.filter((row) => row.studio === studio),
-    [rows, studio],
-  )
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase()
+    return rows.filter((row) => {
+      if (studio !== "all" && row.studio !== studio) return false
+      if (!query) return true
+      return [row.name, row.studio, row.categoriesText, row.cloudDriveUrl, row.note, row.fileName]
+        .some((value) => value?.toLocaleLowerCase().includes(query))
+    })
+  }, [rows, searchQuery, studio])
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize))
   const visibleRows = filteredRows.slice((page - 1) * pageSize, page * pageSize)
   const visibleIds = visibleRows.map((row) => row.id)
   const selectedCount = selectedIds.size
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-  useEffect(() => setPage(1), [studio, pageSize])
+  useEffect(() => setPage(1), [studio, pageSize, searchQuery])
   useEffect(() => setPage((current) => Math.min(current, pageCount)), [pageCount])
 
   // 其他设备的改动会定时同步；本机有未保存内容时保留草稿，不覆盖输入。
@@ -233,8 +239,19 @@ export function PatternSpreadsheet({
             <Link href="/" className={cn(buttonVariants({ variant: "outline", size: "icon-sm" }))} aria-label="返回纸样库">
               <ArrowLeft className="size-4" />
             </Link>
-            <div>
+            <div className="flex min-w-0 items-center gap-3">
               <h1 className="font-serif text-lg font-semibold">在线表格</h1>
+              <div className="relative w-40 sm:w-60">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="搜索纸样"
+                  aria-label="搜索纸样"
+                  className="h-8 pl-8"
+                />
+              </div>
             </div>
           </div>
         </div>
