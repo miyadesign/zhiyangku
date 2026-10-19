@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { compressImageFile } from "@/lib/image-compress"
 import { prefetchSignedParams, uploadDirectToOssFast } from "@/lib/direct-upload"
-import { fileSrc, IMG_FALLBACK_DATA_URI } from "@/lib/gallery-types"
+import { fileSrc, imgOnError, imgOnLoad, IMG_FALLBACK_DATA_URI } from "@/lib/gallery-types"
 import { cn } from "@/lib/utils"
 
 /**
@@ -149,12 +149,8 @@ export function MultiImageUpload({
                 src={fileSrc(key) || IMG_FALLBACK_DATA_URI}
                 alt={`图片 ${idx + 1}`}
                 className="h-full w-full object-cover"
-                onError={(e) => {
-                  const t = e.currentTarget
-                  if (t.dataset.fallback) return
-                  t.dataset.fallback = "1"
-                  t.src = IMG_FALLBACK_DATA_URI
-                }}
+                onLoad={imgOnLoad}
+                onError={imgOnError}
               />
               {/* 主图徽章 */}
               {isPrimary && (
@@ -226,7 +222,7 @@ export function MultiImageUpload({
       {compact && hoveredImage && (
         <div className="pointer-events-none fixed z-[100] size-60 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-xl" style={{ left: hoveredImage.left, top: hoveredImage.top }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fileSrc(hoveredImage.key) || IMG_FALLBACK_DATA_URI} alt="图片预览" className="h-full w-full rounded-lg object-contain" />
+          <img src={fileSrc(hoveredImage.key) || IMG_FALLBACK_DATA_URI} alt="图片预览" className="h-full w-full rounded-lg object-contain" onLoad={imgOnLoad} onError={imgOnError} />
         </div>
       )}
 

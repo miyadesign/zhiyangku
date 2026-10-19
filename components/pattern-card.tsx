@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Heart, Pencil, Trash2 } from "lucide-react"
 import { CategoryBadge } from "@/components/category-badge"
-import { thumbnailSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
+import { thumbnailSrc, imgOnError, imgOnLoad, type GalleryPattern } from "@/lib/gallery-types"
 
 export function PatternCard({
   pattern,
@@ -71,6 +71,7 @@ export function PatternCard({
               loading={nearViewport ? "eager" : "lazy"}
               fetchPriority={priority ? "high" : "auto"}
               decoding="async"
+              onLoad={imgOnLoad}
               onError={imgOnError}
             />
           </div>

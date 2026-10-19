@@ -72,12 +72,7 @@ export function downloadSrc(pathname: string, filename?: string | null): string 
     return filename ? `${base}&filename=${encodeURIComponent(filename)}` : base
 }
 
-/**
- * 图片加载失败的兜底 onError：替换 src 为占位图（data URI，无额外请求）。
- * 用法：<img src={fileSrc(...)} onError={imgOnError} />
- *
- * 一次性替换：把 src 改成 data URI 后浏览器不会再触发 error。
- */
+/** 图片请求可能短暂失败，先自动重试两次，仍失败才显示兜底图。 */
 export const IMG_FALLBACK_DATA_URI =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
@@ -89,11 +84,43 @@ export const IMG_FALLBACK_DATA_URI =
 
 export function imgOnError(e: React.SyntheticEvent<HTMLImageElement>): void {
   const el = e.currentTarget
-  // 防止无限触发
   if (el.dataset.fallback) return
+  const currentSrc = el.getAttribute("src") || ""
+  const originalSrc = el.dataset.originalSrc || currentSrc
+  const retryCount = Number(el.dataset.retryCount || 0)
+
+  if (retryCount < 2 && originalSrc) {
+    const nextRetry = retryCount + 1
+    el.dataset.originalSrc = originalSrc
+    el.dataset.retryCount = String(nextRetry)
+    el.dataset.retryAttemptSrc = currentSrc
+    window.setTimeout(() => {
+      if (!el.isConnected || el.dataset.retryAttemptSrc !== currentSrc || el.getAttribute("src") !== currentSrc) return
+      try {
+        const retryUrl = new URL(originalSrc, window.location.href)
+        if (retryUrl.origin === window.location.origin) {
+          retryUrl.searchParams.set("_image_retry", `${nextRetry}-${Date.now()}`)
+          el.src = `${retryUrl.pathname}${retryUrl.search}${retryUrl.hash}`
+        } else {
+          // 外站签名 URL 不能附加查询参数，否则会破坏签名；原地址延迟重试。
+          el.src = originalSrc
+        }
+      } catch {
+        el.src = originalSrc
+      }
+    }, 350 * nextRetry)
+    return
+  }
+
   el.dataset.fallback = "1"
-  // console 打印，方便排查具体哪个 public_id 失效
-  const originalSrc = el.getAttribute("src") || ""
-  console.warn("[image-fallback] 图片已失效:", originalSrc)
+  console.warn("[image-fallback] retries exhausted:", originalSrc)
   el.src = IMG_FALLBACK_DATA_URI
+}
+
+export function imgOnLoad(e: React.SyntheticEvent<HTMLImageElement>): void {
+  const el = e.currentTarget
+  delete el.dataset.retryCount
+  delete el.dataset.originalSrc
+  delete el.dataset.retryAttemptSrc
+  delete el.dataset.fallback
 }

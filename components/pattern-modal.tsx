@@ -9,7 +9,7 @@ import {
   type ReactZoomPanPinchRef,
 } from "react-zoom-pan-pinch"
 import { CategoryBadge } from "@/components/category-badge"
-import { fileSrc, imgOnError, type GalleryPattern } from "@/lib/gallery-types"
+import { fileSrc, imgOnError, imgOnLoad, type GalleryPattern } from "@/lib/gallery-types"
 import { cn } from "@/lib/utils"
 
 export function PatternModal({
@@ -148,6 +148,7 @@ export function PatternModal({
                         alt={`${pattern.name} 图片 ${currentIdx + 1}`}
                         draggable={false}
                         className="max-h-full max-w-full select-none object-contain"
+                        onLoad={imgOnLoad}
                         onError={imgOnError}
                       />
                     </TransformComponent>
@@ -239,6 +240,8 @@ export function PatternModal({
                     src={fileSrc(url) || "/placeholder.svg"}
                     alt=""
                     className="h-full w-full object-cover"
+                    onLoad={imgOnLoad}
+                    onError={imgOnError}
                   />
                 </button>
               ))}
@@ -286,6 +289,7 @@ export function PatternModal({
                     src={fileSrc(url) || "/placeholder.svg"}
                     alt=""
                     className="h-full w-full object-cover"
+                    onLoad={imgOnLoad}
                     onError={imgOnError}
                   />
                 </button>

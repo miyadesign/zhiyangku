@@ -99,6 +99,9 @@ export function Gallery({
   useEffect(() => {
     setPatterns(initialPatterns)
   }, [initialPatterns])
+  useEffect(() => {
+    setCurrentTags(tags)
+  }, [tags])
 
   // 管理相关状态
   const [editorOpen, setEditorOpen] = useState(false)
@@ -444,7 +447,7 @@ export function Gallery({
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索工作室 / 品类 / 款式 / 尺码…"
+                  placeholder="搜索工作室 / 品类 / 款式 …"
                   aria-label="全局搜索纸样"
                   className="w-full rounded-full border border-border bg-card py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
                 />
